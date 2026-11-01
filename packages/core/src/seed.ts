@@ -50,7 +50,7 @@ export function seedSellers(o: SeedOptions): { sellers: Seller[]; endpoints: End
     ep(HOME_SELLER_ID, "voyage-plan", { description: "Departure window for a harbour: next safe tide, wind and swell, as one plan. Priced high enough to pay per call from any chain.", priceUsdc: "250000", upstreamUrl: `${o.upstream}/brief`, capabilities: ["routing", "marine", "tides", "planning"], methods: ["GET"] }),
     ep(HOME_SELLER_ID, "harbor-brief", {
       description: "Harbour briefing: tides plus marine weather plus a translated notice. Resold from two Penstock sellers.",
-      priceUsdc: "25000", upstreamUrl: `${o.upstream}/brief`, capabilities: ["briefing", "marine", "translate"], methods: ["GET"],
+      priceUsdc: "25000", upstreamUrl: `${o.upstream}/brief`, capabilities: ["briefing", "marine", "translate"], methods: ["GET"], sessionsEnabled: true,
       resaleOf: [`${o.origin}/p/northwind/marine-weather`, `${o.origin}/p/quillfeed/translate`],
     }),
     ep("northwind", "marine-weather", { description: "Wind, swell and visibility nowcast for a coordinate.", priceUsdc: "6000", upstreamUrl: `${o.upstream}/weather`, capabilities: ["weather", "marine", "forecast"], methods: ["GET"] }),
