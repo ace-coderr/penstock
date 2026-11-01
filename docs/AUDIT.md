@@ -2,7 +2,7 @@
 
 This is a self-audit of Penstock at the end of development, done on 2026-11-01. Each item says what was checked and how. "Fixed" means a code change landed with a regression test. "Held" means the existing design already handled it and a test proves it. "Remains" means it is not solved and is stated plainly.
 
-Tests: `pnpm test` runs 85 tests in 13 files. The audit-specific tests are in `apps/proxy/test/audit.test.ts`.
+Tests: `pnpm test` runs 92 tests in 15 files. The audit-specific tests are in `apps/proxy/test/audit.test.ts`.
 
 ## Results
 
@@ -38,7 +38,9 @@ Tests: `pnpm test` runs 85 tests in 13 files. The audit-specific tests are in `a
 | 28 | Console error and empty states | When the proxy is down, the dev server answers 502 with no JSON. The console showed "HTTP 502". | **Fixed**: shows "Proxy not reachable: start with `pnpm demo`" with a Retry button. Empty states exist for payments, filters, funnel, sessions and endpoints. A 401 explains `ADMIN_TOKEN`. |
 | 29 | Keyboard | All actions are native buttons, links or inputs, with a visible focus ring. The receipt drawer takes focus, closes on Escape and restores focus. Daily bars are focusable with labels. The flow diagram has a title and a text description. | Held (checked in the browser) |
 | 30 | Mobile layout | At 375 px, no tab scrolls the page horizontally (checked: `scrollWidth == clientWidth` on all five tabs). Tables scroll inside their own frame, and low-value columns hide. | Held (checked in the browser) |
-| 31 | Clean-clone run | Fresh `git clone` into an empty folder, then `pnpm install` → `pnpm test` (85 passed) → lint and typecheck clean → `pnpm demo` → README steps 4–8 (402 with 19 entries, both self-tests PASS, CSV with 480 rows, console with 8 chains). | Held |
+| 32 | Resale loops | A resale endpoint could resell itself, or chains could loop between sellers. | Held: resale is refused on the endpoint's own URL, and chains are capped at 3 hops (`penstock-resale-depth`). Upstream URLs pass `validateUpstreamUrl`. Live resale refuses payment until `RESALE_NEAR_KEY` is set, so a buyer never pays for a call that cannot be delivered. (`resale.test.ts`) |
+| 33 | Shielded mode degradation | Real 1Click returns 401 for confidential quotes without auth. Failing the payment would break checkout. | Held: on a 401 the route turns itself off, the quote is retried as public, and the payment is booked as not shielded. The console and discovery show "not enabled" with the reason. The Aurora route never claims it can route payments. (`shielded.test.ts`) |
+| 31 | Clean-clone run | Fresh `git clone` into an empty folder, then `pnpm install` → `pnpm test` (85 passed at the time; 92 after resale and shielded mode) → lint and typecheck clean → `pnpm demo` → README steps 4–8 (402 with 19 entries, both self-tests PASS, CSV with 480 rows, console with 8 chains). | Held |
 
 ## What remains
 
@@ -50,4 +52,4 @@ Tests: `pnpm test` runs 85 tests in 13 files. The audit-specific tests are in `a
 - **Header size:** the 402 `PAYMENT-REQUIRED` header is about 10 KB. Some reverse proxies need larger header buffers.
 - **Demo and dry are not paid services:** anyone who can reach them can make simulated deposits. They bind to loopback by default; do not expose them.
 - **Live end to end:** live mode has not been run against mainnet with funds. Dry mode was run against the real 1Click API.
-- **Not built yet:** agent-to-agent resale and the shielded-payer routes come next.
+- **Shielded scope:** shielded mode hides the payer's origin and route only. The USDC delivery to the seller and the seller's revenue stay public. The Aurora route cannot pay until 1Click supports such chains.

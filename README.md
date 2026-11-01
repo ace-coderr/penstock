@@ -90,13 +90,30 @@ You need Node 22.13+ (Node 24 recommended) and pnpm 9 (`corepack enable` provide
 
 12. **Check a payout account.** On **05 Endpoints**, enter `ghost-seller-123.near` under "Payout account check". You get a red "not found" message. In live mode this is a real NEAR RPC lookup; 1Click would otherwise reject the quote with an opaque error.
 
-13. **Run the tests.**
+13. **Watch one agent pay another.**
+    ```bash
+    pnpm selftest "http://localhost:4020/p/tidewater/harbor-brief?harbor=halifax"
+    ```
+    This should PASS. Tidewater's `harbor-brief` endpoint ($0.025) buys from two other Penstock sellers before it answers: Northwind's marine weather ($0.006) and Quillfeed's translation ($0.008). It pays them from its own NEAR account. On **05 Endpoints**, `harbor-brief` shows "Margin / call $0.0110 after $0.0140 upstream". Its receipt drawer lists both upstream receipts as signed.
+
+14. **Turn on shielded-payer mode.** Stop the demo (Ctrl+C), then run:
+    ```bash
+    pnpm demo --shielded
+    ```
+    The banner says `shielded    Confidential Intents route ON (simulated)`. On **05 Endpoints → Shielded payer routes** you should see:
+    - Confidential Intents: **enabled**.
+    - Aurora private chain: **not enabled**, with the reason.
+    - What is hidden and what is not.
+
+    New near-intents payments are booked as shielded. Without `--shielded`, both routes show "not enabled" and everything else works the same.
+
+15. **Run the tests.**
     ```bash
     pnpm test
     ```
-    You should see `Tests 85 passed`. `pnpm lint` and `pnpm typecheck` are also clean, and `pnpm check` runs all three.
+    You should see `Tests 92 passed`. `pnpm lint` and `pnpm typecheck` are also clean, and `pnpm check` runs all three.
 
-14. **Use the buyer as an MCP server.** With the demo running, add this to any MCP client:
+16. **Use the buyer as an MCP server.** With the demo running, add this to any MCP client:
     ```json
     { "mcpServers": { "penstock-buyer": { "command": "pnpm", "args": ["-s", "--dir", "/path/to/penstock", "buyer-mcp"] } } }
     ```
@@ -108,7 +125,7 @@ You need Node 22.13+ (Node 24 recommended) and pnpm 9 (`corepack enable` provide
 
     Configure it with `PENSTOCK_DIRECTORIES`, `PENSTOCK_HOLDINGS`, `PENSTOCK_SIMULATED`, `PENSTOCK_NEAR_ACCOUNT` and `PENSTOCK_NEAR_KEY`.
 
-15. **Dry mode: real 1Click quotes, no funds.**
+17. **Dry mode: real 1Click quotes, no funds.**
     ```bash
     pnpm start:dry
     ```
@@ -120,10 +137,11 @@ You need Node 22.13+ (Node 24 recommended) and pnpm 9 (`corepack enable` provide
 
     Dry mode sends quotes to the existing NEAR account `near` unless you set `SELLER_NEAR_ACCOUNT`. 1Click rejects accounts that do not exist, and the demo name does not exist. The other demo sellers have made-up accounts, so their routes answer with the account message.
 
-16. **Live mode: tiny amounts only.** Copy `.env.example` to `.env` and set:
+18. **Live mode: tiny amounts only.** Copy `.env.example` to `.env` and set:
     - `SELLER_NEAR_ACCOUNT`: an existing NEAR account that can hold USDC.
     - `OPERATION_TOKEN_SECRET`: 32+ random bytes.
     - `ADMIN_TOKEN`: 24+ characters.
+    - `RESALE_NEAR_KEY`: only for resale endpoints. It is a full-access key of your payout account, used to pay upstream sellers. Resale endpoints refuse payment until it is set.
     - `FACILITATOR_URL` and `FACILITATOR_API_KEY`: an x402 facilitator for `near:mainnet`, such as an instance of [fastnear/x402-facilitator](https://github.com/fastnear/x402-facilitator). Its keys are approved by hand per payee.
     - Optionally `ONECLICK_JWT`. Without it, 1Click applies its keyless fee.
 
@@ -182,7 +200,7 @@ packages/intents-adapter  the ONLY module that knows the near-intents and 1Click
 packages/buyer-mcp      buyer library (discovery search, route ranking, automatic 402 handling,
                         automatic sessions) and its stdio MCP server
 packages/selftest       `pnpm selftest <url>`
-packages/shielded       shielded-payer route interface (see Limits)
+packages/shielded       shielded-payer routes: Confidential Intents and Aurora private chain
 examples/upstream-apis  sample upstream APIs the demo sellers protect (tides, geocode, weather,
                         translate, MCP summarize tool); deterministic sample data
 docs/SPEC-NOTES.md      every external wire shape Penstock relies on, with sources and live observations
@@ -201,6 +219,31 @@ Discovery is at `GET /.well-known/penstock.json`. It lists sellers, endpoints, c
 
 **Trust model, plainly:** the funding payment goes to the seller's account, so **the seller holds session funds, up to the cap, until close**. The buyer gets a **signed session receipt** (ed25519) at open, on `GET /s/…/status` and at close. The receipt shows funded, spent, settled, refund and refund state. In demo and dry mode, refunds are simulated. In live mode Penstock holds no keys, so refunds are listed in the console as "owed" for the seller to send. An escrow contract would remove the trust in the seller; it is not built.
 
+## Agent-to-agent resale
+
+A Penstock seller can resell other Penstock sellers' endpoints with a margin. An endpoint with `resaleOf` URLs works like this:
+
+1. It takes the buyer's payment.
+2. It pays each upstream Penstock endpoint as an ordinary agent would, in USDC on NEAR from the seller's own account.
+3. It passes their results to its own composer upstream.
+
+What it paid is booked as `upstreamCost`, so the console shows the margin per call, and the receipt drawer lists the signed upstream receipts. In the demo, `harbor-brief` buys `northwind.marine-weather` and `quillfeed.translate`.
+
+Safeguards: chains are limited to 3 hops, an endpoint cannot resell itself, and upstream URLs pass the same checks as any upstream.
+
+## Shielded-payer mode
+
+There are two routes behind one interface (`packages/shielded`). Neither is required.
+
+- **Confidential Intents.** Near-intents quotes ask 1Click for `confidentiality: "basic"`, so the payer's deposit and the delivery cannot be linked. Real 1Click requires authentication for these quotes (HTTP 401 without `ONECLICK_JWT`, seen live), so the route is enabled only with `SHIELDED_CONFIDENTIAL_INTENTS=true` plus a JWT. In demo mode it runs against the simulated backend. If 1Click still refuses, the route turns itself off and payments continue with public quotes instead of failing.
+- **Aurora private chain.** With `SHIELDED_AURORA_RPC_URL` set, Penstock connects to an Aurora Cloud private chain and verifies it. It reports **not enabled for payments**, because 1Click lists no assets on such a chain. Penstock does not pretend otherwise.
+
+**Privacy scope, plainly:**
+
+- Shielded mode hides the payer's origin wallet and route.
+- It does **not** hide the settlement: the USDC delivery to the seller's NEAR account is a public transfer.
+- The seller's revenue is **not** hidden.
+
 ## Security
 
 The audit and its results are in [docs/AUDIT.md](docs/AUDIT.md). Main measures:
@@ -213,7 +256,8 @@ The audit and its results are in [docs/AUDIT.md](docs/AUDIT.md). Main measures:
 
 ## Honest limits
 
-- **Agent-to-agent resale and shielded-payer mode are not finished yet.** The `harbor-brief` endpoint is marked as resale, but its upstream purchases are not made yet. `packages/shielded` only defines the interface. Both are scheduled after the audit.
+- **The Aurora route cannot pay yet.** It verifies the private chain, but 1Click has no route from it. Confidential Intents needs your own 1Click JWT outside demo mode.
+- **Resale is upfront.** If an upstream seller fails after the buyer has paid, the buyer gets a 502 with the receipt; there is no automatic refund.
 - **Penstock does not observe origin chains itself.** For near-intents, deposit detection and delivery proof come from 1Click `GET /v0/status`; the draft spec asks the facilitator to observe the origin chain.
 - **Quote signatures are not verified.** Penstock checks that the echoed quote terms match the seller's destination, but it does not yet check 1Click's ed25519 quote `signature`, because the public key is not documented in the sources read.
 - **The 402 header is about 10 KB,** because it lists 19 origin entries. That is fine for Node and most clients, but reverse proxies with 4–8 KB header buffers need a larger limit. The same object is also in the response body.
