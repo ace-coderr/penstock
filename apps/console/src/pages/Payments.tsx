@@ -17,11 +17,11 @@ function Hash({ chain, value }: { chain: string; value: string | null }) {
 }
 
 function ReceiptView({ id, onClose }: { id: string; onClose: () => void }) {
-  const r = useApi<{ payment: Payment; receipt: Receipt; receiptValid: boolean }>(`/payments/${id}`);
+  const r = useApi<{ payment: Payment; receipt: Receipt; receiptValid: boolean; upstreamReceipts?: (Receipt & { valid: boolean })[] }>(`/payments/${id}`);
   return (
     <Drawer title={`Receipt ${id}`} onClose={onClose}>
       {r.loading && !r.data ? <Loading lines={8} /> : r.error ? <ErrorState error={r.error} onRetry={r.reload} /> : (() => {
-        const { payment: p, receipt, receiptValid } = r.data!;
+        const { payment: p, receipt, receiptValid, upstreamReceipts = [] } = r.data!;
         return (
           <>
             {p.simulated && <div className="banner"><span className="sim">Simulated</span> This payment was simulated. No funds moved and the hashes are not on any chain.</div>}
@@ -42,6 +42,19 @@ function ReceiptView({ id, onClose }: { id: string; onClose: () => void }) {
               {p.sessionId && <><dt>Session</dt><dd>{p.sessionId}</dd></>}
               {p.shielded && <><dt>Payer route</dt><dd>shielded (origin wallet not linked)</dd></>}
             </dl>
+            {upstreamReceipts.length > 0 && (
+              <div className="sig">
+                <span className="muted">Resale: bought from {upstreamReceipts.length} upstream sellers for {usdc(p.upstreamCost, 6)}; margin {usdc(String(BigInt(p.amountOut) - BigInt(p.upstreamCost)), 6)}</span>
+                <dl className="kv" style={{ marginTop: 10 }}>
+                  {upstreamReceipts.map((u) => (
+                    <div key={u.sig} style={{ display: "contents" }}>
+                      <dt>{String(u.body.endpoint)}</dt>
+                      <dd>{usdc(String(u.body.amountUsdc ?? "0"), 6)} to {String(u.body.seller)} · {u.valid ? <span className="msg-ok">✓ signed</span> : <span className="msg-bad">✗ invalid</span>}</dd>
+                    </div>
+                  ))}
+                </dl>
+              </div>
+            )}
             <div className="sig">
               <span className={receiptValid ? "msg-ok" : "msg-bad"}>{receiptValid ? "✓ Signature valid" : "✗ Signature does not verify"}</span>
               <span className="muted"> · ed25519 · key {short(receipt.pub, 8)}</span>

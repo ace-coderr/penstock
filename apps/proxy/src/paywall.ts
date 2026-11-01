@@ -11,6 +11,8 @@ import type { RateLimiter } from "./ratelimit";
 import { buildTargetUrl, filterRequestHeaders, forward, type UpstreamResult } from "./upstream";
 
 export interface Delivery {
+  /** Returns a reason the endpoint cannot be delivered right now (checked before taking payment). */
+  ready?(endpoint: Endpoint): string | null;
   /** Produces the paid response. Resale endpoints plug in here (they buy from upstream sellers first). */
   deliver(ctx: ProxyContext, endpoint: Endpoint, req: { method: string; headers: Record<string, string>; body: Buffer | null; subPath: string; search: string }, payment: Payment): Promise<UpstreamResult>;
 }
@@ -210,6 +212,9 @@ export async function handleHttpPaid(ctx: ProxyContext, req: IncomingMessage, re
     const wait = ctx.limiter.take("request", buyer, ctx.now());
     if (wait) return sendJson(res, 429, { error: "rate limited" }, { ...PAID_CORS_HEADERS, "retry-after": String(wait) });
   }
+
+  const notReady = ctx.delivery.ready?.(endpoint);
+  if (notReady) return sendJson(res, 503, { error: notReady }, PAID_CORS_HEADERS);
 
   const body = method === "GET" || method === "HEAD" ? null : await readBody(req, 512 * 1024);
   const target = buildTargetUrl(endpoint, subPath, search);

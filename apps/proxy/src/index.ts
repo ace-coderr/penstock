@@ -8,6 +8,7 @@ import { forwardDelivery, handleHttpPaid, handleMcpPaid, PAID_CORS_HEADERS, type
 import { DEFAULT_LIMITS, RateLimiter } from "./ratelimit";
 import { handlePublicApi } from "./public-api";
 import { SessionManager } from "./sessions";
+import { resaleDelivery } from "./resale";
 import { discoveryDocument } from "./discovery";
 import { AccountChecker } from "./account-check";
 import { handleAdminApi } from "./admin-api";
@@ -68,7 +69,7 @@ export function createProxy(opts: ProxyOptions = {}): Proxy {
     limiter: new RateLimiter(DEFAULT_LIMITS),
     allowPrivateUpstreams: config.allowPrivateUpstreams,
     trustProxy: config.trustProxy,
-    delivery: forwardDelivery,
+    delivery: resaleDelivery(forwardDelivery, config),
     now: opts.now ?? Date.now,
   };
   const sessions = new SessionManager(ctx);

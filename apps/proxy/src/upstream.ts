@@ -81,7 +81,7 @@ export function buildTargetUrl(endpoint: Endpoint, subPath: string, search: stri
   return target;
 }
 
-const FORWARD_REQUEST_HEADERS = new Set(["accept", "accept-language", "content-type", "user-agent"]);
+const FORWARD_REQUEST_HEADERS = new Set(["accept", "accept-language", "content-type", "user-agent", "penstock-resale-depth"]);
 const FORWARD_RESPONSE_HEADERS = new Set(["content-type", "cache-control", "content-language", "etag", "last-modified"]);
 
 export interface UpstreamResult {

@@ -191,7 +191,8 @@ export async function handleAdminApi(ctx: ProxyContext, accounts: AccountChecker
     const receipt = receiptFor(ctx, p);
     const session = p.sessionId ? ctx.store.getSession(p.sessionId) : undefined;
     const { secretHash: _omit, ...publicSession } = session ?? ({ secretHash: "" } as { secretHash: string });
-    return sendJson(res, 200, { payment: p, receipt, receiptValid: verifyReceipt(receipt), session: session ? publicSession : null });
+    const resale = JSON.parse(ctx.store.getKv(`resale:${p.id}`) ?? "[]") as SignedReceipt[];
+    return sendJson(res, 200, { payment: p, receipt, receiptValid: verifyReceipt(receipt), session: session ? publicSession : null, upstreamReceipts: resale.map((r) => ({ ...r, valid: verifyReceipt(r) })) });
   }
   if (method === "GET" && path === "/funnel") return sendJson(res, 200, funnel(ctx, sellerId, days));
   if (method === "GET" && path === "/sessions") return sendJson(res, 200, { capUsdc: parseUnits(ctx.config.sessionCapUsd, 6).toString(), sessions: ctx.store.listSessions(sellerId, 200) });

@@ -34,7 +34,7 @@ describe("upstream guards", () => {
   });
 
   it("forwards only an allowlist of request headers and drops CR/LF", () => {
-    const out = filterRequestHeaders({ "content-type": "application/json", cookie: "a=b", authorization: "Bearer x", "payment-signature": "zzz", "user-agent": "bad\r\nX-Injected: 1" });
+    const out = filterRequestHeaders({ "content-type": "application/json", cookie: "a=b", authorization: "Bearer x", "payment-signature": "zzz", "user-agent": "bad\r\nX-Injected: 1", "penstock-session": "ses_x.y" });
     expect(out).toEqual({ "content-type": "application/json" });
   });
 
