@@ -158,6 +158,43 @@ You need Node 22.13+ (Node 24 recommended) and pnpm 9 (`corepack enable` provide
     ```
     `--pay` with `PENSTOCK_NEAR_ACCOUNT` and `PENSTOCK_NEAR_KEY` pays one call in USDC on NEAR. It refuses anything above $0.05.
 
+## Hosted demo (static, Cloudflare Pages)
+
+There is also a fully static build of the landing page and the console, for hosting. It makes **no server calls**:
+
+- Every console request is answered in the browser by a simulated API with the same response shapes as the real admin API (`apps/console/src/static`).
+- That API is fed by a snapshot of the seed data, generated at build time by the real seed generator.
+- A parity test (`apps/proxy/test/static-parity.test.ts`) checks the in-browser responses against the real API for the same ledger.
+- A simulated agent "pays" every few seconds, so the console stays live.
+
+Every page carries a persistent banner: "Hosted demo: everything here is simulated. Run it locally for the real flow." Anything that needs the proxy or an admin token is removed or disabled: there is no token field, "Protect an endpoint" is disabled with a note, and the CSV is built in the browser. A `_headers` file sets a Content-Security-Policy with `connect-src 'self'`, so the browser itself blocks requests to other origins.
+
+**Build and preview it locally:**
+```bash
+pnpm build:static
+```
+```bash
+pnpm --filter @penstock/console preview:static
+```
+Open http://localhost:4031/ (landing) and http://localhost:4031/app (console). The output is in `apps/console/dist`.
+
+**Cloudflare Pages dashboard values** (Workers & Pages → Create → Pages → Connect to Git → this repository):
+
+| Setting | Value |
+| --- | --- |
+| Framework preset | None |
+| Build command | `pnpm build:static` |
+| Build output directory | `apps/console/dist` |
+| Root directory | *(leave empty: the repository root)* |
+| Environment variable | `NODE_VERSION` = `22` |
+| Environment variable | `PNPM_VERSION` = `9.15.9` |
+
+Pages installs dependencies itself, with `pnpm install`, because `pnpm-lock.yaml` is present. Set `PNPM_VERSION`: the v3 build image does not read the pnpm version from the lockfile. If your project runs without an install step, use `pnpm install --frozen-lockfile && pnpm build:static` as the build command.
+
+`wrangler.toml` at the repository root declares the same output directory (`pages_build_output_dir`). SPA routes (`/app`, `/app/…`) are rewritten to the app shell by `apps/console/static-public/_redirects`. Pages also does this by default, because the build has no `404.html`.
+
+No secrets or environment values other than the two versions above are needed or used.
+
 ## How a payment works
 
 ```

@@ -1,3 +1,5 @@
-# Single-page app: the seller console lives under /app (tabs are #hash routes).
-/app      /index.html   200
-/app/*    /index.html   200
+# Single-page app. The seller console lives under /app (its tabs are #hash routes), so serve the
+# app shell for /app and anything below it. Pages would also do this on its own because the build
+# has no 404.html; these rules make it explicit.
+/app      /   200
+/app/*    /   200

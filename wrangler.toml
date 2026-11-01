@@ -1,0 +1,6 @@
+# Cloudflare Pages: hosted static demo (simulated, no server calls). No secrets belong here.
+# Build command (dashboard): pnpm build:static   Root directory: (repository root)
+# Environment variables (dashboard): NODE_VERSION=22, PNPM_VERSION=9.15.9
+name = "penstock-demo"
+pages_build_output_dir = "./apps/console/dist"
+compatibility_date = "2026-11-01"
