@@ -5,7 +5,7 @@ import {
   formatUnits, isValidNearAccount, log, parseUnits, sha256Hex,
   type Endpoint, type Payment, type ResourceInfo, type Seller, type Session, type SignedReceipt,
 } from "@penstock/core";
-import { headerValue, HttpError, sendJson } from "./http";
+import { clientAddress, headerValue, HttpError, sendJson } from "./http";
 import { buyerFor, decide, encodeReceiptHeader, PAID_CORS_HEADERS, requiredHeaders, type ProxyContext, type SessionGate } from "./paywall";
 
 /**
@@ -139,7 +139,7 @@ export class SessionManager implements SessionGate {
       }
       const resource: ResourceInfo = { url: `${ctx.config.publicUrl}/s/${seller.id}/${endpoint.slug}/open/${amount}`, description: `Prepaid session for ${endpoint.id}: ${formatUnits(amount, 6)} USDC, ${amount / price} calls`, mimeType: "application/json", serviceName: seller.name };
       const id = `ses_${randomBytes(8).toString("hex")}`;
-      const d = await decide(ctx, seller, endpoint, buyer, presented, { priceUsdc: amount.toString(), resource, sessionId: id });
+      const d = await decide(ctx, seller, endpoint, buyer, presented, { priceUsdc: amount.toString(), resource, sessionId: id, clientIp: clientAddress(req, ctx.trustProxy) });
       if (d.type === "required") return sendJson(res, 402, d.paymentRequired, requiredHeaders(d));
 
       const secret = randomBytes(32).toString("base64url");

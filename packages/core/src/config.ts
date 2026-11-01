@@ -23,6 +23,8 @@ export interface PenstockConfig {
   allowPrivateUpstreams: boolean;
   /** Honour X-Forwarded-For (only behind a trusted reverse proxy). */
   trustProxy: boolean;
+  /** Listen address: loopback in demo and dry (simulated payments must not be reachable from the network). */
+  host: string;
 }
 
 export function parseMode(raw: string | undefined): Mode {
@@ -53,6 +55,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): PenstockConfig
     operationTokenSecret = randomBytes(32);
   }
 
+  const keyId = (env.OPERATION_TOKEN_KEY_ID ?? "k1").trim() || "k1";
+  if (!/^[A-Za-z0-9_-]{1,16}$/.test(keyId)) throw new Error("OPERATION_TOKEN_KEY_ID must be 1-16 letters, digits, '-' or '_'");
   const adminToken = (env.ADMIN_TOKEN ?? "").trim() || null;
   if (mode === "live" && (!adminToken || adminToken.length < 24)) {
     throw new Error("ADMIN_TOKEN (24+ chars) is required in live mode");
@@ -71,7 +75,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): PenstockConfig
     consoleUrl: (env.CONSOLE_URL ?? "http://localhost:4021").replace(/\/+$/, ""),
     dataDir: env.DATA_DIR ?? "./data/runtime",
     operationTokenSecret,
-    operationTokenKeyId: (env.OPERATION_TOKEN_KEY_ID ?? "k1").trim() || "k1",
+    operationTokenKeyId: keyId,
     adminToken,
     sellerNearAccount,
     oneClickBaseUrl: (env.ONECLICK_BASE_URL ?? "https://1click.chaindefuser.com").replace(/\/+$/, ""),
@@ -84,6 +88,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): PenstockConfig
     logLevel: level === "debug" || level === "silent" ? level : "info",
     allowPrivateUpstreams: mode !== "live" || (env.ALLOW_PRIVATE_UPSTREAMS ?? "").toLowerCase() === "true",
     trustProxy: (env.TRUST_PROXY ?? "").toLowerCase() === "true",
+    host: (env.HOST ?? "").trim() || (mode === "live" ? "0.0.0.0" : "127.0.0.1"),
   };
 }
 

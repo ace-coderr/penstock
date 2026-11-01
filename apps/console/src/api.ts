@@ -91,6 +91,8 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
     throw new ApiError(0, "The Penstock proxy is not reachable.");
   }
   const body = await res.json().catch(() => ({}));
+  // The dev server answers 5xx with no JSON error when the proxy behind it is down.
+  if (!res.ok && res.status >= 500 && !(body as { error?: string }).error) throw new ApiError(0, "The Penstock proxy is not reachable.");
   if (!res.ok) throw new ApiError(res.status, (body as { error?: string }).error ?? `HTTP ${res.status}`);
   return body as T;
 }

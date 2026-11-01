@@ -64,7 +64,7 @@ async function main() {
   const { createProxy } = await import("@penstock/proxy");
   const proxy = createProxy({ config, upstreamBase: `http://127.0.0.1:${UPSTREAM_PORT}` });
   if (config.mode !== "demo") void proxy.intents.warm().catch(() => undefined);
-  await new Promise<void>((r) => proxy.server.listen(PROXY_PORT, r));
+  await new Promise<void>((r) => proxy.server.listen(PROXY_PORT, config.host, r));
 
   const consoleRoot = join(root, "apps", "console");
   const req = createRequire(join(consoleRoot, "package.json"));

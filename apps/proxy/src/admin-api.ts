@@ -20,7 +20,12 @@ const isLoopback = (a: string) => a === "127.0.0.1" || a === "::1" || a === "::f
 function authorize(ctx: ProxyContext, req: IncomingMessage): void {
   const token = ctx.config.adminToken;
   if (!token) {
-    if (ctx.config.mode === "live" || !isLoopback(clientAddress(req, false))) throw new HttpError(401, "admin API requires ADMIN_TOKEN", "unauthorized");
+    // Token-less access is a local demo convenience: loopback socket, no forwarding proxy in front,
+    // and a localhost Host header (defeats DNS rebinding from a web page).
+    const forwarded = req.headers["x-forwarded-for"] !== undefined || req.headers.forwarded !== undefined || ctx.trustProxy;
+    const host = String(req.headers.host ?? "").replace(/:\d+$/, "").toLowerCase();
+    const localHost = host === "localhost" || host === "127.0.0.1" || host === "[::1]";
+    if (ctx.config.mode === "live" || forwarded || !localHost || !isLoopback(clientAddress(req, false))) throw new HttpError(401, "admin API requires ADMIN_TOKEN", "unauthorized");
     return;
   }
   const given = Buffer.from(String(req.headers.authorization ?? "").replace(/^Bearer\s+/i, ""));
@@ -159,6 +164,10 @@ export async function handleAdminApi(ctx: ProxyContext, accounts: AccountChecker
   if (!seller && path !== "/sellers") throw new HttpError(404, "unknown seller", "not_found");
   const days = Math.min(Math.max(Number(url.searchParams.get("days") ?? 30) || 30, 1), 90);
   const method = req.method ?? "GET";
+  // Writes must be JSON: a cross-site form or text/plain POST cannot set this without a CORS preflight.
+  if (method !== "GET" && method !== "HEAD" && !/^application\/json\b/i.test(String(req.headers["content-type"] ?? ""))) {
+    throw new HttpError(415, "admin writes must be application/json", "unsupported_media_type");
+  }
 
   if (method === "GET" && path === "/sellers") return sendJson(res, 200, { sellers: ctx.store.listSellers() });
   if (method === "GET" && path === "/overview") {
@@ -202,7 +211,7 @@ export async function handleAdminApi(ctx: ProxyContext, accounts: AccountChecker
     const b = await readJson<{ slug?: string; upstreamUrl?: string; priceUsd?: string; description?: string; methods?: string[]; capabilities?: string[]; sessionsEnabled?: boolean }>(req, 8192);
     if (!b.slug || !SLUG.test(b.slug)) throw new HttpError(400, "slug: lowercase letters, digits and dashes", "invalid_slug");
     if (ctx.store.findEndpoint(sellerId, b.slug)) throw new HttpError(409, "an endpoint with this slug exists", "exists");
-    const v = validateUpstreamUrl(String(b.upstreamUrl ?? ""), ctx.allowPrivateUpstreams);
+    const v = validateUpstreamUrl(String(b.upstreamUrl ?? ""), ctx.allowPrivateUpstreams, [ctx.config.port]);
     if (!v.ok) throw new HttpError(400, `upstreamUrl: ${v.reason}`, "invalid_upstream");
     let price: bigint;
     try {

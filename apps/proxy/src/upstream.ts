@@ -36,7 +36,7 @@ export function isBlockedAddress(address: string, allowPrivate: boolean): boolea
 }
 
 /** Validates an upstream URL when a seller registers it. */
-export function validateUpstreamUrl(raw: string, allowPrivate: boolean): { ok: true; url: URL } | { ok: false; reason: string } {
+export function validateUpstreamUrl(raw: string, allowPrivate: boolean, selfPorts: number[] = []): { ok: true; url: URL } | { ok: false; reason: string } {
   let url: URL;
   try {
     url = new URL(raw);
@@ -50,6 +50,10 @@ export function validateUpstreamUrl(raw: string, allowPrivate: boolean): { ok: t
   const host = url.hostname.replace(/^\[|\]$/g, "");
   if (isIP(host) && isBlockedAddress(host, allowPrivate)) return { ok: false, reason: "upstream address is not allowed" };
   if (!allowPrivate && /^(localhost|.*\.localhost|.*\.internal|.*\.local)$/i.test(host)) return { ok: false, reason: "internal hostnames are not allowed in live mode" };
+  // Never let an endpoint forward to Penstock itself (its admin API trusts loopback when no token is set).
+  const port = Number(url.port || (url.protocol === "https:" ? 443 : 80));
+  const loopback = /^(localhost|127(\.\d+){3}|::1|0\.0\.0\.0)$/i.test(host);
+  if (loopback && selfPorts.includes(port)) return { ok: false, reason: "an upstream cannot point back at this Penstock proxy" };
   return { ok: true, url };
 }
 

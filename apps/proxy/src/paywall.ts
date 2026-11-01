@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { createHmac, randomUUID } from "node:crypto";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { decodePaymentSignatureHeader, encodePaymentRequiredHeader, encodePaymentResponseHeader } from "@x402/core/http";
 import {
@@ -87,6 +87,8 @@ export interface DecideOptions {
   resource?: ResourceInfo;
   /** Ledger session id to attach to the settled payment. */
   sessionId?: string;
+  /** Client address, used to rate-limit costly actions independently of the user agent. */
+  clientIp?: string;
 }
 
 export async function decide(ctx: ProxyContext, seller: Seller, endpointIn: Endpoint, buyer: string, presented: unknown | null, opts: DecideOptions = {}): Promise<Decision> {
@@ -111,7 +113,7 @@ export async function decide(ctx: ProxyContext, seller: Seller, endpointIn: Endp
 
   let outcome: MethodOutcome;
   try {
-    outcome = await handler.process(payload, requirement, { store: ctx.store, now: ctx.now, allow: (a) => ctx.limiter.take(a, buyer, ctx.now()) === 0 }, { endpoint, seller, buyer, resource });
+    outcome = await handler.process(payload, requirement, { store: ctx.store, now: ctx.now, allow: (a) => ctx.limiter.take(a, opts.clientIp ?? buyer, ctx.now()) === 0 }, { endpoint, seller, buyer, resource });
   } catch (e) {
     log("error", "payment processing failed", { endpoint: endpoint.id, method: handler.id, error: (e as Error).message });
     return { type: "required", paymentRequired: required("payment could not be processed; try again") };
@@ -168,8 +170,20 @@ export function encodeReceiptHeader(receipt: SignedReceipt): string {
   return Buffer.from(JSON.stringify(receipt)).toString("base64url");
 }
 
+const buyerKeys = new WeakMap<ProxyContext, Buffer>();
+
+/** Buyer handles use a key derived from the token secret, never the token key itself. */
+function buyerKey(ctx: ProxyContext): Buffer {
+  let k = buyerKeys.get(ctx);
+  if (!k) {
+    k = createHmac("sha256", ctx.config.operationTokenSecret).update("penstock/buyer-handle/v1").digest();
+    buyerKeys.set(ctx, k);
+  }
+  return k;
+}
+
 export function buyerFor(ctx: ProxyContext, req: IncomingMessage): string {
-  return buyerHandle(ctx.config.operationTokenSecret, [clientAddress(req, ctx.trustProxy), String(req.headers["user-agent"] ?? "")]);
+  return buyerHandle(buyerKey(ctx), [clientAddress(req, ctx.trustProxy), String(req.headers["user-agent"] ?? "")]);
 }
 
 function encodeReceipt(receipt: SignedReceipt): string {
@@ -218,7 +232,7 @@ export async function handleHttpPaid(ctx: ProxyContext, req: IncomingMessage, re
       presented = { malformed: true };
     }
   }
-  const d = await decide(ctx, seller, endpoint, buyer, presented);
+  const d = await decide(ctx, seller, endpoint, buyer, presented, { clientIp: clientAddress(req, ctx.trustProxy) });
   if (d.type === "required") return sendJson(res, 402, d.paymentRequired, requiredHeaders(d));
 
   return deliverHttp(ctx, res, endpoint, { method, headers: filterRequestHeaders(req.headers), body, subPath, search }, d.payment, {
@@ -274,7 +288,12 @@ export async function handleMcpPaid(ctx: ProxyContext, req: IncomingMessage, res
   if (!target) throw new HttpError(500, "invalid upstream", "invalid_upstream");
   const forwardRpc = async (m: JsonRpc) => forward(target, "POST", { "content-type": "application/json" }, Buffer.from(JSON.stringify(m)), { allowPrivate: ctx.allowPrivateUpstreams });
 
-  // Discovery calls are free; only tool calls are paid.
+  // Discovery calls are free; tool calls are paid; anything else (resources, prompts…) is refused so
+  // paid content cannot be fetched through an unpaid method.
+  const FREE = new Set(["initialize", "ping", "tools/list", "notifications/initialized"]);
+  if (msg.method !== "tools/call" && !FREE.has(msg.method)) {
+    return sendJson(res, 200, { jsonrpc: "2.0", id: msg.id ?? null, error: { code: -32601, message: `method ${msg.method} is not available through this paywall` } });
+  }
   if (msg.method !== "tools/call") {
     const up = await forwardRpc(msg);
     return sendRaw(res, up.status, up.body, { ...PAID_CORS_HEADERS, "content-type": "application/json" });
@@ -291,7 +310,7 @@ export async function handleMcpPaid(ctx: ProxyContext, req: IncomingMessage, res
     paymentResponse = { session: m.headers["PENSTOCK-SESSION-BALANCE"] ?? null };
   } else {
     const presented = meta["x402/payment"] ?? null;
-    const d = await decide(ctx, seller, endpoint, buyer, presented);
+    const d = await decide(ctx, seller, endpoint, buyer, presented, { clientIp: clientAddress(req, ctx.trustProxy) });
     if (d.type === "required") {
       return sendJson(res, 200, {
         jsonrpc: "2.0", id: msg.id ?? null,
