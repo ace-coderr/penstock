@@ -7,6 +7,7 @@ import { ExactNearMethod, httpExactFacilitator, simulatedExactFacilitator, type 
 import { forwardDelivery, handleHttpPaid, handleMcpPaid, PAID_CORS_HEADERS, type ProxyContext } from "./paywall";
 import { DEFAULT_LIMITS, RateLimiter } from "./ratelimit";
 import { handlePublicApi } from "./public-api";
+import { SessionManager } from "./sessions";
 
 export interface ProxyOptions {
   config?: PenstockConfig;
@@ -26,8 +27,10 @@ export interface Proxy {
   config: PenstockConfig;
   ctx: ProxyContext;
   intents: IntentsStack;
+  sessions: SessionManager;
 }
 
+const SESSION_ROUTE = /^\/s\/([a-z0-9][a-z0-9-]{0,39})\/([a-z0-9][a-z0-9-]{0,59})\/(open|status|close)(?:\/([0-9]{1,12}))?$/;
 const PAID_ROUTE = /^\/p\/([a-z0-9][a-z0-9-]{0,39})\/([a-z0-9][a-z0-9-]{0,59})(\/[^?#]*)?$/;
 
 function buildExact(config: PenstockConfig, opts: ProxyOptions): ExactNearMethod {
@@ -57,6 +60,8 @@ export function createProxy(opts: ProxyOptions = {}): Proxy {
     delivery: forwardDelivery,
     now: opts.now ?? Date.now,
   };
+  const sessions = new SessionManager(ctx);
+  ctx.sessions = sessions;
 
   const route = async (req: IncomingMessage, res: ServerResponse) => {
     const url = new URL(req.url ?? "/", "http://penstock.local");
@@ -74,6 +79,14 @@ export function createProxy(opts: ProxyOptions = {}): Proxy {
       if (!seller || !endpoint) throw new HttpError(404, "no such paid endpoint", "not_found");
       if (endpoint.kind === "mcp") return handleMcpPaid(ctx, req, res, seller, endpoint);
       return handleHttpPaid(ctx, req, res, seller, endpoint, paid[3] ?? "", url.search);
+    }
+
+    const sess = SESSION_ROUTE.exec(path);
+    if (sess) {
+      const seller = store.getSeller(sess[1]!);
+      const endpoint = seller ? store.findEndpoint(seller.id, sess[2]!) : undefined;
+      if (!seller || !endpoint) throw new HttpError(404, "no such paid endpoint", "not_found");
+      return sessions.handle(req, res, seller, endpoint, sess[3]!, sess[4], url);
     }
 
     // Simulated origin-chain transfer into a simulated deposit address (demo and dry mode only).
@@ -106,5 +119,7 @@ export function createProxy(opts: ProxyOptions = {}): Proxy {
   });
   server.headersTimeout = 15_000;
   server.requestTimeout = 60_000;
-  return { server, store, config, ctx, intents };
+  server.on("listening", () => sessions.start());
+  server.on("close", () => sessions.stop());
+  return { server, store, config, ctx, intents, sessions };
 }

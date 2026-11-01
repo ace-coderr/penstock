@@ -100,6 +100,8 @@ function toSession(r: Row): Session {
     status: r.status as Session["status"], openedAt: Number(r.opened_at), closedAt: r.closed_at == null ? null : Number(r.closed_at),
     refundUsdc: s(r.refund_usdc), fundingPaymentId: String(r.funding_payment_id), refundTo: String(r.refund_to),
     originChain: String(r.origin_chain), simulated: !!r.simulated,
+    refundState: (r.refund_state ?? "none") as Session["refundState"], refundTx: s(r.refund_tx),
+    expiresAt: r.expires_at == null ? null : Number(r.expires_at),
   };
 }
 
@@ -126,6 +128,15 @@ export class Store {
     this.db = new DatabaseSync(file);
     this.db.exec("PRAGMA journal_mode = WAL; PRAGMA busy_timeout = 3000; PRAGMA foreign_keys = ON;");
     this.db.exec(SCHEMA);
+    this.migrate();
+  }
+
+  /** Additive column migrations for ledgers created by earlier versions. */
+  private migrate(): void {
+    const cols = new Set((this.db.prepare("PRAGMA table_info(sessions)").all() as Row[]).map((r) => String(r.name)));
+    if (!cols.has("refund_state")) this.db.exec("ALTER TABLE sessions ADD COLUMN refund_state TEXT NOT NULL DEFAULT 'none'");
+    if (!cols.has("refund_tx")) this.db.exec("ALTER TABLE sessions ADD COLUMN refund_tx TEXT");
+    if (!cols.has("expires_at")) this.db.exec("ALTER TABLE sessions ADD COLUMN expires_at INTEGER");
   }
 
   close(): void {
@@ -341,6 +352,28 @@ export class Store {
         .run(now, refund.toString(), sessionId);
       return Number(res.changes) === 1 ? refund : null;
     });
+  }
+
+  /** Records how the unused balance was returned: simulated, owed by the seller (live), or sent. */
+  setSessionRefund(sessionId: string, state: "simulated" | "owed" | "sent", tx: string | null): void {
+    this.db.prepare("UPDATE sessions SET refund_state = ?, refund_tx = ? WHERE id = ?").run(state, tx, sessionId);
+  }
+
+  setSessionExpiry(sessionId: string, expiresAt: number): void {
+    this.db.prepare("UPDATE sessions SET expires_at = ? WHERE id = ?").run(expiresAt, sessionId);
+  }
+
+  openSessionCount(endpointId: string, buyer: string): number {
+    return Number((this.db.prepare("SELECT COUNT(*) AS n FROM sessions WHERE endpoint_id = ? AND buyer = ? AND status = 'open'").get(endpointId, buyer) as Row).n);
+  }
+
+  /** Open sessions that have unbatched calls or are past their expiry. */
+  sessionsNeedingWork(now: number): { id: string; expired: boolean; unbatched: number }[] {
+    return (this.db.prepare(`SELECT s.id, (s.expires_at IS NOT NULL AND s.expires_at < ?) AS expired,
+      (SELECT COUNT(*) FROM session_calls c WHERE c.session_id = s.id AND c.batch_id IS NULL) AS unbatched
+      FROM sessions s WHERE s.status = 'open'`).all(now) as Row[])
+      .map((r) => ({ id: String(r.id), expired: !!r.expired, unbatched: Number(r.unbatched) }))
+      .filter((r) => r.expired || r.unbatched > 0);
   }
 
   sessionCalls(sessionId: string): { ts: number; costUsdc: string; batchId: string | null }[] {

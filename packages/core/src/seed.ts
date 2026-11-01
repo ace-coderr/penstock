@@ -192,7 +192,7 @@ export function seedStore(store: Store, o: SeedOptions): SeedSummary {
       const buyer = buyers[Math.floor(rnd() * 40)]!;
       const funded = BigInt([1, 2, 2, 3, 5][Math.floor(rnd() * 5)]! * 1_000_000);
       const sid = `ses_${(++sessions).toString().padStart(4, "0")}`;
-      const fund = writePayment(endpoint, ts, buyer, { method: "session", amountOut: funded, sessionId: sid, status: "settled" });
+      const fund = writePayment(endpoint, ts, buyer, { amountOut: funded, sessionId: sid, status: "settled" });
       const price = BigInt(endpoint.priceUsdc);
       const maxCalls = Number(funded / price);
       const calls = Math.floor(maxCalls * (0.2 + rnd() * 0.75));
@@ -205,6 +205,8 @@ export function seedStore(store: Store, o: SeedOptions): SeedSummary {
         fundingPaymentId: fund.id, refundTo: fund.payer, originChain: fund.originChain, simulated: true,
       };
       store.insertSession(session, sha256Hex(`seed-session-secret-${sid}`));
+      store.setSessionExpiry(sid, ts + 86_400_000);
+      if (closed) store.setSessionRefund(sid, "simulated", simTx(chainByKey("near")!, rnd));
       writeProbe(endpoint, ts - 3000, buyer, "paid", null, fund.originChain, fund.id);
     }
     // Drop-offs: probes that never became payments. Reasons are inferred from behaviour.

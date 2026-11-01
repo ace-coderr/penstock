@@ -35,7 +35,7 @@ export interface ProxyContext {
 
 export const PAID_CORS_HEADERS: Record<string, string> = {
   "access-control-allow-origin": "*",
-  "access-control-expose-headers": "PAYMENT-REQUIRED, PAYMENT-RESPONSE, PENSTOCK-RECEIPT, PENSTOCK-SESSION",
+  "access-control-expose-headers": "PAYMENT-REQUIRED, PAYMENT-RESPONSE, PENSTOCK-RECEIPT, PENSTOCK-SESSION-BALANCE",
   "access-control-allow-headers": "PAYMENT-SIGNATURE, PENSTOCK-SESSION, Content-Type, Accept",
   "access-control-allow-methods": "GET, POST, OPTIONS",
 };
@@ -80,8 +80,18 @@ function recordProbe(ctx: ProxyContext, endpoint: Endpoint, buyer: string): void
  * whether to ask for payment, return a quote, or let the call through. Server terms always come
  * from the server's own offers; the client's `accepted` is only used to pick one of them.
  */
-export async function decide(ctx: ProxyContext, seller: Seller, endpoint: Endpoint, buyer: string, presented: unknown | null): Promise<Decision> {
-  const resource = resourceFor(ctx, seller, endpoint);
+export interface DecideOptions {
+  /** Charge this instead of the per-call price (session funding). */
+  priceUsdc?: string;
+  /** Bind the payment to this resource instead of the endpoint's (session funding). */
+  resource?: ResourceInfo;
+  /** Ledger session id to attach to the settled payment. */
+  sessionId?: string;
+}
+
+export async function decide(ctx: ProxyContext, seller: Seller, endpointIn: Endpoint, buyer: string, presented: unknown | null, opts: DecideOptions = {}): Promise<Decision> {
+  const endpoint = opts.priceUsdc ? { ...endpointIn, priceUsdc: opts.priceUsdc } : endpointIn;
+  const resource = opts.resource ?? resourceFor(ctx, seller, endpoint);
   const offers = await allOffers(ctx, endpoint, seller, resource);
   const required = (error: string | undefined, accepts = offers): PaymentRequired => ({ x402Version: 2, ...(error ? { error } : {}), resource, accepts });
 
@@ -134,11 +144,11 @@ export async function decide(ctx: ProxyContext, seller: Seller, endpoint: Endpoi
       }
       const payment: Payment = {
         id: `pay_${randomUUID().replace(/-/g, "").slice(0, 16)}`, ts: ctx.now(), sellerId: seller.id, endpointId: endpoint.id, status: "settled",
-        ...outcome.fields, originTx: outcome.fields.originTx, refundedAmount: null, refundReason: null, sessionId: null, upstreamCost: "0",
+        ...outcome.fields, refundedAmount: null, refundReason: null, sessionId: opts.sessionId ?? null, upstreamCost: "0",
         simulated: handler.simulated, receiptSig: null,
       };
       const receipt = ctx.receipts.sign({
-        v: 1, kind: "payment", paymentId: payment.id, seller: seller.nearAccount, endpoint: endpoint.id, resource: resource.url,
+        v: 1, kind: opts.sessionId ? "session-funding" : "payment", paymentId: payment.id, ...(opts.sessionId ? { sessionId: opts.sessionId } : {}), seller: seller.nearAccount, endpoint: endpoint.id, resource: resource.url,
         amountUsdc: payment.amountOut, network: outcome.settle.network, transaction: outcome.settle.transaction,
         originChain: payment.originChain, originTx: payment.originTx, payer: payment.payer, ts: payment.ts, simulated: payment.simulated,
       });
@@ -150,6 +160,10 @@ export async function decide(ctx: ProxyContext, seller: Seller, endpoint: Endpoi
   }
 }
 
+export function encodeReceiptHeader(receipt: SignedReceipt): string {
+  return Buffer.from(JSON.stringify(receipt)).toString("base64url");
+}
+
 export function buyerFor(ctx: ProxyContext, req: IncomingMessage): string {
   return buyerHandle(ctx.config.operationTokenSecret, [clientAddress(req, ctx.trustProxy), String(req.headers["user-agent"] ?? "")]);
 }
@@ -158,7 +172,7 @@ function encodeReceipt(receipt: SignedReceipt): string {
   return Buffer.from(JSON.stringify(receipt)).toString("base64url");
 }
 
-function requiredHeaders(d: Extract<Decision, { type: "required" }>): Record<string, string> {
+export function requiredHeaders(d: Extract<Decision, { type: "required" }>): Record<string, string> {
   return {
     ...PAID_CORS_HEADERS,
     "PAYMENT-REQUIRED": encodePaymentRequiredHeader(d.paymentRequired),
@@ -172,15 +186,18 @@ export async function handleHttpPaid(ctx: ProxyContext, req: IncomingMessage, re
   const method = (req.method ?? "GET").toUpperCase();
   if (!endpoint.methods.includes(method)) throw new HttpError(405, `method ${method} not allowed here`, "method_not_allowed");
   const buyer = buyerFor(ctx, req);
-  const wait = ctx.limiter.take("request", buyer, ctx.now());
-  if (wait) return sendJson(res, 429, { error: "rate limited" }, { ...PAID_CORS_HEADERS, "retry-after": String(wait) });
+  const sessionToken = headerValue(req, "penstock-session");
+  // Metered session calls have their own (higher) limit inside the session gate.
+  if (!sessionToken) {
+    const wait = ctx.limiter.take("request", buyer, ctx.now());
+    if (wait) return sendJson(res, 429, { error: "rate limited" }, { ...PAID_CORS_HEADERS, "retry-after": String(wait) });
+  }
 
   const body = method === "GET" || method === "HEAD" ? null : await readBody(req, 512 * 1024);
   const target = buildTargetUrl(endpoint, subPath, search);
   if (!target) throw new HttpError(400, "invalid path", "invalid_path");
 
   // Prepaid session: metered call, no per-call settlement.
-  const sessionToken = headerValue(req, "penstock-session");
   if (sessionToken && ctx.sessions) {
     const m = await ctx.sessions.meter(ctx, endpoint, sessionToken, buyer);
     if (!m.ok) return sendJson(res, m.status, { error: m.error }, PAID_CORS_HEADERS);
@@ -267,7 +284,7 @@ export async function handleMcpPaid(ctx: ProxyContext, req: IncomingMessage, res
     const m = await ctx.sessions.meter(ctx, endpoint, sessionToken, buyer);
     if (!m.ok) return sendJson(res, 200, { jsonrpc: "2.0", id: msg.id ?? null, result: { isError: true, content: [{ type: "text", text: m.error }] } });
     payment = m.payment;
-    paymentResponse = { session: m.headers["PENSTOCK-SESSION"] ?? null };
+    paymentResponse = { session: m.headers["PENSTOCK-SESSION-BALANCE"] ?? null };
   } else {
     const presented = meta["x402/payment"] ?? null;
     const d = await decide(ctx, seller, endpoint, buyer, presented);

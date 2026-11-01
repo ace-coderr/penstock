@@ -109,6 +109,10 @@ export interface Session {
   refundTo: string;
   originChain: string;
   simulated: boolean;
+  /** How the unused balance went back: simulated (demo/dry), owed by the seller (live), or sent. */
+  refundState?: "none" | "simulated" | "owed" | "sent";
+  refundTx?: string | null;
+  expiresAt?: number | null;
 }
 
 export interface SignedReceipt<T = Record<string, unknown>> {
