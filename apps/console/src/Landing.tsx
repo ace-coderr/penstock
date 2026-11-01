@@ -1,0 +1,217 @@
+import { useEffect, useState, type ReactNode } from "react";
+import { Wordmark } from "./components/Wordmark";
+import { CardArt, HeroArt } from "./components/Iso";
+import { units } from "./format";
+
+const REPO = "https://github.com/ace-coderr/penstock";
+
+interface Stats {
+  simulated: boolean;
+  days: number;
+  seller: string;
+  payments: number;
+  chains: number;
+  receivedUsdc: string;
+}
+
+function useStats(): { stats: Stats | null; state: "loading" | "ready" | "unavailable" } {
+  const [s, set] = useState<{ stats: Stats | null; state: "loading" | "ready" | "unavailable" }>({ stats: null, state: "loading" });
+  useEffect(() => {
+    let live = true;
+    fetch("/api/public/stats")
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
+      .then((stats: Stats) => live && set({ stats, state: "ready" }))
+      .catch(() => live && set({ stats: null, state: "unavailable" }));
+    return () => {
+      live = false;
+    };
+  }, []);
+  return s;
+}
+
+const INSTRUMENTS: { id: "protect" | "chains" | "sessions" | "books"; title: string; body: string; href: string; cta: string }[] = [
+  { id: "protect", title: "Protect any endpoint", body: "Put an x402 paywall in front of any HTTP API or MCP tool. A request reaches your upstream only after it is paid, and only that upstream.", href: "/app#/endpoints", cta: "Endpoints" },
+  { id: "chains", title: "Accept any chain and token", body: "Agents pay from Base, Solana, Ethereum, Arbitrum, Bitcoin and more. NEAR Intents routes the swap; you receive USDC in one NEAR account.", href: "/app#/payments", cta: "Payments" },
+  { id: "sessions", title: "Sessions for micro-calls", body: "Bridges have minimums, so a $0.004 call can't cross chains alone. One payment opens a capped session; calls are metered; the rest is refunded.", href: "/app#/sessions", cta: "Sessions" },
+  { id: "books", title: "Books that close", body: "Every payment carries a signed receipt. Refunds, route fees and resale margins land in one CSV an accountant can read without you.", href: "/app#/payments", cta: "Export CSV" },
+];
+
+const CHECKS: { title: string; body: string; code: string }[] = [
+  { title: "Fresh quote", body: "Each cross-chain payment gets its own single-use 1Click deposit address and refund deadline. The operation token that redeems it expires.", code: "operationToken · expiry" },
+  { title: "Payout account exists", body: "Before any quote, the seller's NEAR account is looked up. 1Click rejects quotes to accounts that do not exist, so Penstock says so first.", code: "view_account" },
+  { title: "Price matches the endpoint", body: "Terms always come from the seller's own offer. A payment that edits the amount, payee or asset is refused.", code: "server terms only" },
+  { title: "Refund path set", body: "Every cross-chain quote carries the payer's refund address on the chain they paid from. Failed or short deposits go back there.", code: "refundTo · ORIGIN_CHAIN" },
+  { title: "Replay blocked", body: "A payment is claimed and executed exactly once, enforced by the ledger. Sending it again does not run the call again.", code: "claim · execute once" },
+];
+
+function Section({ id, eyebrow, title, intro, children }: { id?: string; eyebrow: string; title: ReactNode; intro?: ReactNode; children: ReactNode }) {
+  return (
+    <section className="l-sec" id={id} aria-labelledby={id ? `${id}-h` : undefined}>
+      <div className="l-sec-head">
+        <span className="eyebrow"><i aria-hidden="true" />{eyebrow}</span>
+        <h2 id={id ? `${id}-h` : undefined}>{title}</h2>
+        {intro && <p>{intro}</p>}
+      </div>
+      {children}
+    </section>
+  );
+}
+
+function Proof() {
+  const { stats, state } = useStats();
+  if (state === "loading") {
+    return (
+      <div className="proof" aria-busy="true">
+        {[0, 1, 2].map((i) => <div className="proof-item" key={i}><div className="skeleton" style={{ height: 48, width: "60%" }} /><div className="skeleton" style={{ width: "80%" }} /></div>)}
+      </div>
+    );
+  }
+  if (!stats) {
+    return (
+      <div className="state">
+        <span className="state-title">No demo numbers here</span>
+        <p>These figures come from the local demo ledger. Run <code>pnpm demo</code> and reload; a live deployment does not publish them.</p>
+      </div>
+    );
+  }
+  const usd = units(stats.receivedUsdc, 6, 2);
+  const items = [
+    { n: stats.payments.toLocaleString("en-US"), l: `payments in ${stats.days} days` },
+    { n: String(stats.chains), l: "chains paid from, one account receiving" },
+    { n: `$${Number(usd).toFixed(2)}`, l: "USDC received on NEAR" },
+  ];
+  return (
+    <div className="proof">
+      {items.map((x) => (
+        <div className="proof-item" key={x.l}>
+          <div className="proof-n">{x.n}</div>
+          <div className="proof-l">{x.l}</div>
+          <span className="sim-inline">simulated demo data</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+export function Landing() {
+  useEffect(() => {
+    document.title = "Penstock: get paid by AI agents from any chain";
+  }, []);
+  return (
+    <div className="landing">
+      <a className="skip" href="#main">Skip to content</a>
+      <header className="l-top">
+        <div className="frame l-top-row">
+          <a href="/" className="mark" aria-label="Penstock home"><Wordmark size={24} /></a>
+          <nav className="l-links" aria-label="Site">
+            <a href="#how">How it works</a>
+            <a href={`${REPO}#readme`}>Docs</a>
+            <a href="/app">Demo</a>
+          </nav>
+          <a className="btn btn-primary l-top-cta" href="/app">Open the demo</a>
+        </div>
+      </header>
+
+      <main id="main" tabIndex={-1}>
+        <div className="frame">
+          <section className="l-hero" aria-labelledby="hero-h">
+            <div className="l-hero-copy">
+              <span className="eyebrow"><i aria-hidden="true" />x402 · NEAR Intents · USDC on NEAR</span>
+              <h1 id="hero-h">Let any agent pay you, <em>from any chain.</em></h1>
+              <p className="l-sub">Penstock puts an x402 paywall in front of any API or MCP tool. Agents pay with any token; you receive USDC on NEAR, with books that close.</p>
+              <div className="l-actions">
+                <a className="btn btn-primary" href="/app">Open the demo console</a>
+                <a className="btn btn-ghost" href="#how">How it works</a>
+              </div>
+              <p className="l-note mono">The demo runs locally with simulated payments: no keys, no funds, no network.</p>
+            </div>
+            <div className="l-hero-art"><HeroArt /></div>
+          </section>
+
+          <section className="l-works" aria-label="Works with">
+            <span className="l-works-label mono">Works with</span>
+            <ul>
+              <li><span className="wm wm-intents">NEAR Intents</span><span className="faint">1Click cross-chain settlement</span></li>
+              <li><span className="wm wm-x402">x402</span><span className="faint">HTTP 402 payments, v2</span></li>
+              <li><span className="wm wm-mcp">MCP</span><span className="faint">paid tools for agents</span></li>
+            </ul>
+          </section>
+
+          <Section id="instruments" eyebrow="Instruments" title="Four instruments. One console." intro="Each one is a tab in the seller console, and each one is working in the demo right now.">
+            <div className="cards">
+              {INSTRUMENTS.map((c, i) => (
+                <article className="card" key={c.id}>
+                  <div className="card-art" aria-hidden="true"><CardArt kind={c.id} /></div>
+                  <span className="card-n mono">0{i + 1}</span>
+                  <h3>{c.title}</h3>
+                  <p>{c.body}</p>
+                  <a href={c.href} className="card-link">{c.cta} <span aria-hidden="true">→</span></a>
+                </article>
+              ))}
+            </div>
+          </Section>
+
+          <Section eyebrow="From the demo ledger" title="What the demo has seen" intro="Read live from the seeded demo ledger when the demo is running. None of these are real transactions.">
+            <Proof />
+          </Section>
+
+          <Section id="how" eyebrow="How it works" title="Every payment runs the same checklist" intro="An agent calls your endpoint and gets HTTP 402 with every chain you accept. It pays from whatever it holds. You receive USDC on NEAR and the call goes through, but only after these checks pass.">
+            <ol className="steps" aria-label="Payment flow">
+              <li><span className="mono">01</span>Agent calls, gets <code className="inline">402</code> listing every accepted chain</li>
+              <li><span className="mono">02</span>Agent pays from what it holds, on its own chain</li>
+              <li><span className="mono">03</span>USDC lands in your NEAR account; the call is forwarded</li>
+            </ol>
+            <ul className="checklist">
+              {CHECKS.map((c) => (
+                <li key={c.title}>
+                  <svg viewBox="0 0 20 20" className="check" aria-hidden="true"><circle cx="10" cy="10" r="9" /><path d="M6 10.4l2.6 2.6L14.2 7.4" /></svg>
+                  <div>
+                    <h3>{c.title}</h3>
+                    <p>{c.body}</p>
+                  </div>
+                  <span className="chip">{c.code}</span>
+                </li>
+              ))}
+            </ul>
+          </Section>
+
+          <section className="l-cta" aria-labelledby="cta-h">
+            <h2 id="cta-h">See it work in one command.</h2>
+            <p><code className="inline">pnpm demo</code> starts the paywall, the console and a simulated buyer agent paying from different chains.</p>
+            <div className="l-actions">
+              <a className="btn btn-primary" href="/app">Open the demo console</a>
+              <a className="btn btn-ghost" href={REPO}>Read the source</a>
+            </div>
+          </section>
+        </div>
+      </main>
+
+      <footer className="l-foot">
+        <div className="frame l-foot-grid">
+          <div>
+            <Wordmark size={22} />
+            <p className="faint">Get paid by AI agents from any chain. Built for NEAR HACKATHON 2026. MIT licensed.</p>
+          </div>
+          <nav aria-label="Product">
+            <h3>Product</h3>
+            <a href="/app">Seller console</a>
+            <a href="/app#/payments">Payments and receipts</a>
+            <a href="/app#/funnel">Funnel</a>
+          </nav>
+          <nav aria-label="Docs">
+            <h3>Docs</h3>
+            <a href={`${REPO}#readme`}>README</a>
+            <a href={`${REPO}/blob/main/docs/SPEC-NOTES.md`}>Spec notes</a>
+            <a href={`${REPO}/blob/main/docs/AUDIT.md`}>Audit</a>
+          </nav>
+          <nav aria-label="Source">
+            <h3>Source</h3>
+            <a href={REPO}>GitHub</a>
+            <a href={`${REPO}/blob/main/LICENSE`}>License (MIT)</a>
+            <a href="https://github.com/x402-foundation/x402/pull/3370">near-intents draft</a>
+          </nav>
+        </div>
+      </footer>
+    </div>
+  );
+}

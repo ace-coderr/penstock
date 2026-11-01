@@ -74,11 +74,12 @@ async function main() {
   const ui = await vite.createServer({ root: consoleRoot, configFile: join(consoleRoot, "vite.config.ts"), logLevel: "warn", server: { port: CONSOLE_PORT, strictPort: true } });
   await ui.listen();
 
-  const consoleUrl = `http://localhost:${CONSOLE_PORT}/`;
+  const consoleUrl = `http://localhost:${CONSOLE_PORT}/app`;
   console.log(`
   PENSTOCK  ${config.mode} mode: ${config.mode === "demo" ? "every quote, deposit and settlement is SIMULATED. No keys, no funds, no network." : config.mode === "dry" ? "quotes are REAL 1Click dry quotes; deposits and settlement are SIMULATED. No funds move." : "LIVE on mainnet. Real funds. Use tiny amounts."}
 
   console     ${consoleUrl}
+  landing     http://localhost:${CONSOLE_PORT}/
   proxy       http://localhost:${PROXY_PORT}/healthz
   discovery   http://localhost:${PROXY_PORT}/.well-known/penstock.json
   paid API    http://localhost:${PROXY_PORT}/p/tidewater/tides?harbor=rotterdam   (returns 402 until paid)
