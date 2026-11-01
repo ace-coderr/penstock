@@ -4,12 +4,21 @@
   "private": true,
   "type": "module",
   "license": "MIT",
-  "exports": { ".": "./src/index.ts" },
-  "scripts": { "start": "tsx src/main.ts" },
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "start": "tsx src/main.ts"
+  },
   "dependencies": {
     "@penstock/core": "workspace:*",
     "@penstock/intents-adapter": "workspace:*",
     "@penstock/shielded": "workspace:*",
-    "@x402/core": "2.29.0"
+    "@x402/core": "2.29.0",
+    "@x402/near": "2.29.0"
+  },
+  "devDependencies": {
+    "@penstock/buyer-mcp": "workspace:*",
+    "@penstock/example-upstream-apis": "workspace:*"
   }
 }

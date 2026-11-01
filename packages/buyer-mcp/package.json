@@ -4,6 +4,15 @@
   "private": true,
   "type": "module",
   "license": "MIT",
-  "exports": { ".": "./src/index.ts" },
-  "dependencies": { "@penstock/core": "workspace:*" }
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@near-js/crypto": "2.5.1",
+    "@near-js/signers": "2.5.1",
+    "@near-js/transactions": "2.5.1",
+    "@penstock/core": "workspace:*",
+    "@x402/core": "2.29.0",
+    "@x402/near": "2.29.0"
+  }
 }

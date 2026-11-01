@@ -252,6 +252,16 @@ export class Store {
       .run(p.id, p.ts, p.endpointId, p.buyer, p.originChain, p.stage, p.inferredReason, p.paymentId, p.simulated ? 1 : 0);
   }
 
+  latestProbe(endpointId: string, buyer: string): Probe | undefined {
+    const r = this.db.prepare("SELECT * FROM probes WHERE endpoint_id = ? AND buyer = ? ORDER BY ts DESC LIMIT 1").get(endpointId, buyer) as Row | undefined;
+    return r ? toProbe(r) : undefined;
+  }
+
+  /** Sets the inferred drop-off reason on a probe that stalled. */
+  setProbeReason(id: string, reason: string): void {
+    this.db.prepare("UPDATE probes SET inferred_reason = ? WHERE id = ?").run(reason, id);
+  }
+
   /** Advances the buyer's latest open probe on an endpoint; stages only move forward. */
   advanceProbe(endpointId: string, buyer: string, stage: FunnelStage, fields: { originChain?: string; paymentId?: string } = {}): void {
     const rank: Record<FunnelStage, number> = { probed: 0, quoted: 1, deposited: 2, paid: 3, refunded: 3 };

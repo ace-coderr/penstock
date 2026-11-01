@@ -19,6 +19,10 @@ export interface PenstockConfig {
   shieldedConfidentialIntents: boolean;
   shieldedAuroraRpcUrl: string | null;
   logLevel: "debug" | "info" | "silent";
+  /** Loopback/private upstreams are allowed in demo and dry mode, refused in live unless opted in. */
+  allowPrivateUpstreams: boolean;
+  /** Honour X-Forwarded-For (only behind a trusted reverse proxy). */
+  trustProxy: boolean;
 }
 
 export function parseMode(raw: string | undefined): Mode {
@@ -76,6 +80,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): PenstockConfig
     shieldedConfidentialIntents: (env.SHIELDED_CONFIDENTIAL_INTENTS ?? "false").toLowerCase() === "true",
     shieldedAuroraRpcUrl: (env.SHIELDED_AURORA_RPC_URL ?? "").trim() || null,
     logLevel: level === "debug" || level === "silent" ? level : "info",
+    allowPrivateUpstreams: mode !== "live" || (env.ALLOW_PRIVATE_UPSTREAMS ?? "").toLowerCase() === "true",
+    trustProxy: (env.TRUST_PROXY ?? "").toLowerCase() === "true",
   };
 }
 

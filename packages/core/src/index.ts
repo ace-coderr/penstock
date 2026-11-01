@@ -6,3 +6,4 @@ export * from "./crypto";
 export * from "./store";
 export * from "./seed";
 export { log } from "./log";
+export * from "./sim";
