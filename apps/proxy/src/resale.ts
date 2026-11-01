@@ -56,8 +56,11 @@ export function resaleDelivery(base: Delivery, config: PenstockConfig, env: Node
         upstream.push({ url: u, status: r.status, body: r.body });
         receipts.push(receipt);
       }
-      ctx.store.updatePayment(payment.id, { upstreamCost: cost.toString() });
-      ctx.store.setKv(`resale:${payment.id}`, JSON.stringify(receipts));
+      // A session-metered call is booked against the session's funding payment: accumulate, do not overwrite.
+      const prior = payment.sessionId ? BigInt(ctx.store.getPayment(payment.id)?.upstreamCost ?? "0") : 0n;
+      const priorReceipts = payment.sessionId ? (JSON.parse(ctx.store.getKv(`resale:${payment.id}`) ?? "[]") as unknown[]) : [];
+      ctx.store.updatePayment(payment.id, { upstreamCost: (prior + cost).toString() });
+      ctx.store.setKv(`resale:${payment.id}`, JSON.stringify([...priorReceipts, ...receipts]));
       log("info", "resale call composed", { endpoint: endpoint.id, upstreamCalls: upstream.length, upstreamCostUsdc: cost.toString() });
       const target = buildTargetUrl(endpoint, "", "");
       if (!target) throw new Error("invalid composer upstream");

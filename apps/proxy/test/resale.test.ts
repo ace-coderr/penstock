@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { loadConfig, type Endpoint } from "@penstock/core";
-import { PenstockBuyer, parseHoldings, simulatedNearWallet } from "@penstock/buyer-mcp";
+import { PenstockBuyer, parseHoldings, simulatedNearWallet, simulatedOriginWallet } from "@penstock/buyer-mcp";
 import { resaleDelivery } from "../src/resale";
 import { forwardDelivery } from "../src/paywall";
 import { startHarness, type Harness } from "./helpers";
@@ -35,6 +35,19 @@ describe("agent-to-agent resale", () => {
 
     const eps = (await (await fetch(`${h.base}/api/admin/endpoints`)).json()) as { endpoints: { slug: string; marginPerCallUsdc: string | null }[] };
     expect(eps.endpoints.find((e) => e.slug === "harbor-brief")!.marginPerCallUsdc).not.toBeNull();
+  });
+
+  it("accumulates upstream cost on the funding payment for session-metered resale calls", async () => {
+    // Holding only SOL: $0.025 is below the Solana bridge minimum, so the buyer opens a session.
+    const buyer = new PenstockBuyer({ directories: [], holdings: parseHoldings("sol:SOL:90000000"), origins: [simulatedOriginWallet("sol", h.base)] });
+    const a = await buyer.call(`${h.base}/p/tidewater/harbor-brief?harbor=lagos`);
+    const b = await buyer.call(`${h.base}/p/tidewater/harbor-brief?harbor=mombasa`);
+    expect([a.method, b.method]).toEqual(["session", "session"]);
+    const sessionId = h.proxy.store.listSessions("tidewater", 50).find((s) => s.endpointId === "tidewater.harbor-brief" && s.status === "open")!.id;
+    const funding = h.proxy.store.getPayment(h.proxy.store.getSession(sessionId)!.fundingPaymentId)!;
+    expect(funding.upstreamCost).toBe("28000"); // two calls x (6000 + 8000)
+    expect(JSON.parse(h.proxy.store.getKv(`resale:${funding.id}`)!)).toHaveLength(4);
+    await buyer.closeSessions();
   });
 
   it("refuses payment for a resale endpoint in live mode until the seller configures a resale key", () => {

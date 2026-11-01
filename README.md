@@ -111,7 +111,7 @@ You need Node 22.13+ (Node 24 recommended) and pnpm 9 (`corepack enable` provide
     ```bash
     pnpm test
     ```
-    You should see `Tests 92 passed`. `pnpm lint` and `pnpm typecheck` are also clean, and `pnpm check` runs all three.
+    You should see `Tests 93 passed`. `pnpm lint` and `pnpm typecheck` are also clean, and `pnpm check` runs all three.
 
 16. **Use the buyer as an MCP server.** With the demo running, add this to any MCP client:
     ```json
