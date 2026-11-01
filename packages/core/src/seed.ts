@@ -188,7 +188,9 @@ export function seedStore(store: Store, o: SeedOptions): SeedSummary {
     // Sessions: one funding payment each, metered calls, most closed with a refund.
     for (let i = 0; i < 24; i++) {
       const endpoint = homeEndpoints[rnd() < 0.7 ? 0 : 1]!;
-      const ts = Math.round(now - rnd() * 28 * day);
+      const closed = rnd() < 0.8;
+      // Open sessions are recent (sessions expire after 24h and are then closed and refunded).
+      const ts = Math.round(now - (closed ? rnd() * 28 * day : rnd() * 20 * 3_600_000));
       const buyer = buyers[Math.floor(rnd() * 40)]!;
       const funded = BigInt([1, 2, 2, 3, 5][Math.floor(rnd() * 5)]! * 1_000_000);
       const sid = `ses_${(++sessions).toString().padStart(4, "0")}`;
@@ -197,7 +199,6 @@ export function seedStore(store: Store, o: SeedOptions): SeedSummary {
       const maxCalls = Number(funded / price);
       const calls = Math.floor(maxCalls * (0.2 + rnd() * 0.75));
       const spent = price * BigInt(calls);
-      const closed = rnd() < 0.85;
       const session: Session = {
         id: sid, sellerId: HOME_SELLER_ID, endpointId: endpoint.id, buyer, capUsdc: "5000000", fundedUsdc: funded.toString(),
         spentUsdc: spent.toString(), settledUsdc: closed ? spent.toString() : (spent - (spent % (price * 50n))).toString(), status: closed ? "closed" : "open",

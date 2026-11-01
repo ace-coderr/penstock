@@ -66,7 +66,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): PenstockConfig
     mode,
     port,
     publicUrl: (env.PUBLIC_URL ?? `http://localhost:${port}`).replace(/\/+$/, ""),
-    consoleUrl: (env.CONSOLE_URL ?? "http://localhost:5173").replace(/\/+$/, ""),
+    consoleUrl: (env.CONSOLE_URL ?? "http://localhost:4021").replace(/\/+$/, ""),
     dataDir: env.DATA_DIR ?? "./data/runtime",
     operationTokenSecret,
     operationTokenKeyId: (env.OPERATION_TOKEN_KEY_ID ?? "k1").trim() || "k1",
