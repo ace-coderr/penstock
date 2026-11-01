@@ -65,7 +65,7 @@ const headers = read(join(dist, "_headers"));
 check(/connect-src 'self'/.test(headers) && /default-src 'self'/.test(headers) && /font-src 'self'/.test(headers), "_headers sets a same-origin CSP");
 const redirects = read(join(dist, "_redirects"));
 check(/^\/app\s+\/\s+200/m.test(redirects) && /^\/app\/\*\s+\/\s+200/m.test(redirects), "_redirects rewrites /app routes to the app shell");
-check(!files.some((f) => /404\.html$/.test(f)), "no 404.html, so Pages' SPA fallback also applies");
+check(!files.some((f) => /404\.html$/.test(f)), "no 404.html, so single-page-application not_found_handling applies");
 
 const css = assets.filter((f) => f.endsWith(".css")).map(read).join("\n");
 const reduce = (css.match(/prefers-reduced-motion:\s*reduce/g) ?? []).length;

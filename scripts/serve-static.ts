@@ -1,7 +1,7 @@
 /**
- * `pnpm serve:static`: serves apps/console/dist the way Cloudflare Pages does, for checking the
+ * `pnpm serve:static`: serves apps/console/dist the way Cloudflare static assets do, for checking the
  * hosted demo locally. It applies _headers (including the Content-Security-Policy), the 200
- * rewrites in _redirects, and Pages' single-page fallback (no 404.html: unknown paths get the
+ * rewrites in _redirects, and single-page-application not_found_handling (unknown paths get the
  * app shell). Port 4032 by default (STATIC_PORT).
  */
 import { createServer } from "node:http";
@@ -70,7 +70,7 @@ createServer((req, res) => {
     }
   }
   let file = resolveFile(path);
-  // Pages SPA rendering: with no 404.html, any path that is not an asset gets the app shell.
+  // not_found_handling = "single-page-application": any path that is not an asset gets the app shell.
   if (!file && !extname(path)) file = join(root, "index.html");
   if (!file) {
     res.writeHead(404, { ...headers, "content-type": "text/plain" });

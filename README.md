@@ -158,7 +158,7 @@ You need Node 22.13+ (Node 24 recommended) and pnpm 9 (`corepack enable` provide
     ```
     `--pay` with `PENSTOCK_NEAR_ACCOUNT` and `PENSTOCK_NEAR_KEY` pays one call in USDC on NEAR. It refuses anything above $0.05.
 
-## Hosted demo (static, Cloudflare Pages)
+## Hosted demo (static, Cloudflare Workers static assets)
 
 There is also a fully static build of the landing page and the console, for hosting. It makes **no server calls**:
 
@@ -178,7 +178,7 @@ pnpm --filter @penstock/console preview:static
 ```
 Open http://localhost:4031/ (landing) and http://localhost:4031/app (console). The output is in `apps/console/dist`.
 
-To serve it with Cloudflare Pages' rules (the `_headers` CSP and the `_redirects` rewrites) and audit the bundle:
+To serve it with Cloudflare's static-assets rules (the `_headers` CSP and the `_redirects` rewrites) and audit the bundle:
 ```bash
 pnpm serve:static
 ```
@@ -187,20 +187,33 @@ pnpm audit:static
 ```
 `serve:static` serves http://localhost:4032/. `audit:static` checks the build: no secrets or personal data, no `data:` URIs, only same-origin requests, the CSP and rewrites in place, reduced-motion rules present, every row simulated. It prints `PASS` or the failures.
 
-**Cloudflare Pages dashboard values** (Workers & Pages → Create → Pages → Connect to Git → this repository):
+**Deployment.** The hosted demo is deployed as a **Cloudflare Workers static-assets site**: a Worker with no server code that serves `apps/console/dist`. The repository-root `wrangler.toml` declares it:
+
+```toml
+name = "penstock"
+compatibility_date = "2026-11-01"
+
+[assets]
+directory = "./apps/console/dist"
+not_found_handling = "single-page-application"
+```
+
+**Cloudflare dashboard values** (Workers & Pages → Create → Workers → import this repository):
 
 | Setting | Value |
 | --- | --- |
-| Framework preset | None |
 | Build command | `pnpm build:static` |
-| Build output directory | `apps/console/dist` |
+| Deploy command | `npx wrangler deploy` |
 | Root directory | *(leave empty: the repository root)* |
-| Environment variable | `NODE_VERSION` = `22` |
-| Environment variable | `PNPM_VERSION` = `9.15.9` |
+| Variable | `NODE_VERSION` = `22` |
+| Variable | `PNPM_VERSION` = `9.15.9` |
 
-Pages installs dependencies itself, with `pnpm install`, because `pnpm-lock.yaml` is present. Set `PNPM_VERSION`: the v3 build image does not read the pnpm version from the lockfile. If your project runs without an install step, use `pnpm install --frozen-lockfile && pnpm build:static` as the build command.
+The build command writes the site to `apps/console/dist`. `npx wrangler deploy` then reads `wrangler.toml` and uploads that directory as the Worker's static assets.
 
-`wrangler.toml` at the repository root declares the same output directory (`pages_build_output_dir`). SPA routes (`/app`, `/app/…`) are rewritten to the app shell by `apps/console/static-public/_redirects`. Pages also does this by default, because the build has no `404.html`.
+Workers static assets apply the `_headers` and `_redirects` files in that directory, both copied from `apps/console/static-public/`:
+- `_headers` sets the CSP and security headers.
+- `_redirects` rewrites `/app` and `/app/*` to the app shell with 200 proxying.
+- `not_found_handling = "single-page-application"` also serves `index.html` for any other navigation, so refreshing a console route works.
 
 No secrets or environment values other than the two versions above are needed or used.
 
