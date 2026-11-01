@@ -55,7 +55,9 @@ describe("seed", () => {
     expect(sum.payments).toBeGreaterThanOrEqual(400);
     expect(sum.probes).toBeGreaterThan(sum.payments);
     const home = store.listPayments({ sellerId: HOME_SELLER_ID, limit: 5000 });
-    expect(new Set(home.map((p) => p.originChain)).size).toBeGreaterThanOrEqual(8);
+    expect(new Set(home.map((p) => p.originChain)).size).toBeGreaterThanOrEqual(7);
+    // No payment uses a route whose 1Click bridge minimum is above the amount delivered.
+    for (const p of home) expect(BigInt(CHAINS.find((c) => c.key === p.originChain)!.routeMinimumUsdc)).toBeLessThanOrEqual(BigInt(p.amountOut));
     expect(home.every((p) => p.simulated)).toBe(true);
     expect(home.filter((p) => p.originTx).every((p) => p.originTx!.startsWith("sim"))).toBe(true);
     const again = seedStore(store, { origin: "http://localhost:4020", upstream: "http://127.0.0.1:4030" });

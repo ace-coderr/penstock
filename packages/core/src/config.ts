@@ -58,7 +58,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): PenstockConfig
     throw new Error("ADMIN_TOKEN (24+ chars) is required in live mode");
   }
 
-  const sellerNearAccount = (env.SELLER_NEAR_ACCOUNT ?? "").trim() || "tidewater-data.near";
+  // Demo uses a made-up name (simulated). Dry mode talks to real 1Click, which rejects quotes to
+  // NEAR accounts that do not exist, so it defaults to an account that does ("near"); set yours.
+  const sellerNearAccount = (env.SELLER_NEAR_ACCOUNT ?? "").trim() || (mode === "dry" ? "near" : "tidewater-data.near");
   if (mode === "live" && !env.SELLER_NEAR_ACCOUNT) throw new Error("SELLER_NEAR_ACCOUNT is required in live mode");
 
   const level = (env.PENSTOCK_LOG ?? "info").toLowerCase();

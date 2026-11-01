@@ -1,5 +1,5 @@
 import { CHAINS, DESTINATION, chainByKey, assetOn, formatUnits, type AssetInfo, type ChainInfo } from "@penstock/core";
-import type { OneClick } from "./oneclick";
+import { parseRouteMinimum, type OneClick } from "./oneclick";
 
 /**
  * "Pay with any token": given what a buyer holds, quote every route to USDC on NEAR and rank them
@@ -30,6 +30,8 @@ export interface RankedRoute {
   timeEstimateSec: number;
   affordable: boolean | null;
   source: "1click-dry-quote" | "simulated-quote" | "direct";
+  /** Set when the price is below this route's bridge minimum: pay via a prepaid session of at least this much. */
+  minAmountOut?: string;
   error?: string;
 }
 
@@ -72,6 +74,10 @@ export class RoutePlanner {
           affordable: afford(q.quote.amountIn), source: this.source,
         };
       } catch (e) {
+        const min = parseRouteMinimum((e as Error).message);
+        if (min !== null) {
+          return { ...base, method: "near-intents", amountIn: "0", amountInFormatted: "0", amountInUsd: Infinity, amountOutUsd: 0, feeUsd: 0, feePct: 0, timeEstimateSec: 0, affordable: null, source: this.source, minAmountOut: min.toString(), error: `below the route minimum of ${formatUnits(min, DESTINATION.decimals)} USDC: use a prepaid session` };
+        }
         return { ...base, method: "near-intents", amountIn: "0", amountInFormatted: "0", amountInUsd: Infinity, amountOutUsd: 0, feeUsd: 0, feePct: 0, timeEstimateSec: 0, affordable: false, source: this.source, error: (e as Error).message.slice(0, 160) };
       }
     });

@@ -139,6 +139,26 @@ Observed live, 2026-11-01:
 - A `recipient` NEAR account that does not exist → HTTP 400 `{"message":"Internal server error"}`. Penstock checks the seller account before it quotes.
 - `confidentiality: "basic"` without auth → HTTP 401 "User authentication is required for confidential intent quotes". The confidential route needs a 1Click JWT.
 
+Route minimums, observed live on 2026-11-01. This matters most for micro-payments:
+
+- 1Click refuses `EXACT_OUTPUT` amounts below a per-route bridge minimum. It answers HTTP 400 `"Amount is too low for bridge, try at least N"`, where N is in destination base units (USDC).
+- Minimums observed for delivering USDC to NEAR:
+
+| Origin | Minimum (USDC base units) | About |
+| --- | --- | --- |
+| NEAR (wNEAR, USDT) | none at 4000 | — |
+| Optimism | none at 4000 | — |
+| Arbitrum | 5298 | $0.0053 |
+| Avalanche | 5845 | $0.0058 |
+| Polygon | 6741 | $0.0067 |
+| Solana | 94115 | $0.094 |
+| Base | 149990 | $0.15 |
+| Ethereum | 299969 | $0.30 |
+| Bitcoin | 6454605 | $6.45 |
+
+- Consequence: a $0.004 call cannot be paid per call from most chains. Penstock answers with the minimum and a session link. The buyer then funds a prepaid session once, from the route with the smallest minimum, and meters calls against it.
+- `chains.ts` keeps these values as `routeMinimumUsdc`, and the demo simulation enforces them. Dry and live mode read the real values from 1Click's errors (`parseRouteMinimum`), because they move with gas.
+
 Recorded responses are stored as contract-test fixtures in `packages/intents-adapter/fixtures/`.
 
 ## 7. Confidential routes (shielded-payer mode)

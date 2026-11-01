@@ -1,5 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
+import { chainByKey } from "@penstock/core";
 import {
   OneClickError, type OneClick, type QuoteRequest, type QuoteResponse, type StatusResponse, type SubmitDepositTxRequest, type SwapStatus, type TokenResponse,
 } from "./oneclick";
@@ -85,6 +86,11 @@ export class SimulatedOneClick implements OneClick {
     const dest = this.token(req.destinationAsset);
     if (req.swapType !== "EXACT_OUTPUT" && req.swapType !== "EXACT_INPUT") throw new OneClickError(400, "simulated backend supports EXACT_INPUT and EXACT_OUTPUT");
 
+    // Bridge minimums per origin chain, as observed on the real API (see chains.ts routeMinimumUsdc).
+    const minimum = BigInt(chainByKey(origin.blockchain)?.routeMinimumUsdc ?? 0);
+    if (req.swapType === "EXACT_OUTPUT" && dest.blockchain === "near" && BigInt(req.amount) < minimum) {
+      throw new OneClickError(400, `1Click HTTP 400: Amount is too low for bridge, try at least ${minimum}`);
+    }
     const sameAsset = origin.assetId === dest.assetId;
     const stable = /USD/.test(origin.symbol);
     const feeFrac = sameAsset ? 0 : (stable ? 0.0035 : 0.007) + (origin.blockchain === "btc" ? 0.012 : origin.blockchain === "eth" ? 0.004 : 0.001);

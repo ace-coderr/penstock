@@ -200,3 +200,13 @@ export class HttpOneClick implements OneClick {
     return assertStatusResponse(await this.call("/v0/deposit/submit", { method: "POST", body: JSON.stringify(req) }));
   }
 }
+
+/**
+ * 1Click refuses amounts below a per-route bridge minimum with HTTP 400
+ * "Amount is too low for bridge, try at least N" (N in destination base units; seen live
+ * 2026-11-01). Returns N, or null if the error is something else.
+ */
+export function parseRouteMinimum(message: string): bigint | null {
+  const m = /too low for bridge, try at least (\d{1,30})/i.exec(message);
+  return m ? BigInt(m[1]!) : null;
+}

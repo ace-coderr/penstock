@@ -30,6 +30,7 @@ export class RateLimiter {
 export const DEFAULT_LIMITS = {
   request: { perMinute: 240, burst: 60 },
   quote: { perMinute: 12, burst: 6 },
+  routes: { perMinute: 30, burst: 10 },
   session: { perMinute: 600, burst: 120 },
   admin: { perMinute: 600, burst: 200 },
 };

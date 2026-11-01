@@ -47,6 +47,7 @@ export function seedSellers(o: SeedOptions): { sellers: Seller[]; endpoints: End
     ep(HOME_SELLER_ID, "tides", { description: "Tide predictions for a harbour: next highs and lows, heights in metres.", priceUsdc: "4000", upstreamUrl: `${o.upstream}/tides`, capabilities: ["tides", "marine", "forecast"], sessionsEnabled: true, methods: ["GET"] }),
     ep(HOME_SELLER_ID, "geocode", { description: "Harbour name to coordinates and UN/LOCODE.", priceUsdc: "2000", upstreamUrl: `${o.upstream}/geocode`, capabilities: ["geocode", "ports"], sessionsEnabled: true, methods: ["GET"] }),
     ep(HOME_SELLER_ID, "summarize", { kind: "mcp", description: "MCP tool: summarise a notice to mariners into three lines.", priceUsdc: "10000", upstreamUrl: `${o.upstream}/mcp`, capabilities: ["summarize", "text", "mcp"], methods: ["POST"] }),
+    ep(HOME_SELLER_ID, "voyage-plan", { description: "Departure window for a harbour: next safe tide, wind and swell, as one plan. Priced high enough to pay per call from any chain.", priceUsdc: "250000", upstreamUrl: `${o.upstream}/brief`, capabilities: ["routing", "marine", "tides", "planning"], methods: ["GET"] }),
     ep(HOME_SELLER_ID, "harbor-brief", {
       description: "Harbour briefing: tides plus marine weather plus a translated notice. Resold from two Penstock sellers.",
       priceUsdc: "25000", upstreamUrl: `${o.upstream}/brief`, capabilities: ["briefing", "marine", "translate"], methods: ["GET"],
@@ -108,6 +109,8 @@ const DROP_REASONS = {
     "Quote expired before a deposit arrived",
     "Route fee above 3% of the price: likely judged too expensive",
     "Requested quotes on several chains, paid none",
+    "Held only BTC: the route minimum (about $6.45) is above the price",
+    "Price below the route minimum and no session opened",
   ],
   deposited: ["Deposit below the quoted minimum: refunded to payer"],
 } as const;
@@ -134,7 +137,8 @@ export function seedStore(store: Store, o: SeedOptions): SeedSummary {
   const day = 86_400_000;
   const buyers = Array.from({ length: 150 }, (_, i) => "b_" + sha256Hex(`seed-buyer-${i}`).slice(0, 12));
   const homeEndpoints = endpoints.filter((e) => e.sellerId === HOME_SELLER_ID);
-  const endpointWeights: [Endpoint, number][] = homeEndpoints.map((e) => [e, e.slug === "tides" ? 0.45 : e.slug === "geocode" ? 0.25 : e.slug === "summarize" ? 0.15 : 0.15]);
+  const weight: Record<string, number> = { tides: 0.4, geocode: 0.22, summarize: 0.13, "harbor-brief": 0.12, "voyage-plan": 0.13 };
+  const endpointWeights: [Endpoint, number][] = homeEndpoints.map((e) => [e, weight[e.slug] ?? 0.1]);
   const otherEndpoints = endpoints.filter((e) => e.sellerId !== HOME_SELLER_ID);
 
   let payments = 0;
@@ -143,10 +147,13 @@ export function seedStore(store: Store, o: SeedOptions): SeedSummary {
   let pid = 0;
 
   const writePayment = (endpoint: Endpoint, ts: number, buyer: string, opts: { method?: Payment["method"]; amountOut?: bigint; sessionId?: string; status?: Payment["status"] } = {}): Payment => {
-    const chain = chainByKey(pick(rnd, CHAIN_WEIGHTS))!;
+    const amountOut = opts.amountOut ?? BigInt(endpoint.priceUsdc);
+    // Only routes whose 1Click bridge minimum fits the amount (NEAR-native routes have none).
+    let chain = chainByKey(pick(rnd, CHAIN_WEIGHTS))!;
+    for (let tries = 0; tries < 30 && BigInt(chain.routeMinimumUsdc) > amountOut; tries++) chain = chainByKey(pick(rnd, CHAIN_WEIGHTS))!;
+    if (BigInt(chain.routeMinimumUsdc) > amountOut) chain = chainByKey("near")!;
     const asset = chain.assets[rnd() < 0.7 ? 0 : Math.min(chain.assets.length - 1, 1 + Math.floor(rnd() * (chain.assets.length - 1)))]!;
     const method: Payment["method"] = opts.method ?? (chain.key === "near" && asset.symbol === "USDC" ? "exact-near" : "near-intents");
-    const amountOut = opts.amountOut ?? BigInt(endpoint.priceUsdc);
     const outUsd = Number(amountOut) / 1e6;
     const fee = method === "exact-near" ? 0 : simulatedFeeFraction(chain, asset, rnd);
     const inUsd = outUsd * (1 + fee);

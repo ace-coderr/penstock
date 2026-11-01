@@ -137,7 +137,10 @@ export async function decide(ctx: ProxyContext, seller: Seller, endpointIn: Endp
           ctx.store.advanceProbe(endpoint.id, buyer, "refunded", { paymentId: id });
         }
       }
-      return { type: "required", paymentRequired: required(`${outcome.reason}: ${outcome.message}`), settle: outcome.settle };
+      {
+        const hint = endpoint.sessionsEnabled && /route minimum/.test(outcome.message) ? ` Open a session: ${ctx.config.publicUrl}/s/${seller.id}/${endpoint.slug}/open/{amountUsdc}` : "";
+        return { type: "required", paymentRequired: required(`${outcome.reason}: ${outcome.message}.${hint}`), settle: outcome.settle };
+      }
     case "settled": {
       if (!ctx.store.markExecuted(outcome.operationId, ctx.now())) {
         return { type: "required", paymentRequired: required("exact_near_intents_operation_executed: this payment was already redeemed"), settle: outcome.settle };

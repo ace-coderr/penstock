@@ -53,7 +53,7 @@ export interface PaidResult {
   status: number;
   body: unknown;
   paid: boolean;
-  method?: "exact-near" | "near-intents";
+  method?: "exact-near" | "near-intents" | "session";
   originChain?: string;
   originSymbol?: string;
   amountIn?: string;
@@ -72,6 +72,8 @@ export interface BuyerOptions {
   fetchImpl?: typeof fetch;
   /** settlement_pending retries with the same payload. */
   pendingRetries?: number;
+  /** Sent as User-Agent so a seller can tell agents apart. */
+  userAgent?: string;
 }
 
 interface Pending {
@@ -89,7 +91,10 @@ export class PenstockBuyer {
   private readonly pending = new Map<string, Pending>();
 
   constructor(private readonly o: BuyerOptions) {
-    this.f = o.fetchImpl ?? fetch;
+    const base = o.fetchImpl ?? fetch;
+    this.f = o.userAgent
+      ? (((input: string | URL | Request, init: RequestInit = {}) => base(input, { ...init, headers: { ...(init.headers as Record<string, string> | undefined), "user-agent": o.userAgent! } })) as typeof fetch)
+      : base;
   }
 
   /** Searches every directory for endpoints matching a capability word and a price ceiling. */
@@ -130,8 +135,22 @@ export class PenstockBuyer {
     return !!this.o.origins?.some((w) => w.chain === route.chain);
   }
 
-  /** Calls a URL; on 402 pays from the cheapest usable holding and retries. */
+  /** Open sessions this buyer funded, keyed by endpoint URL (without query). */
+  private readonly sessions = new Map<string, { token: string; closeUrl: string }>();
+
+  /**
+   * Calls a URL; on 402 pays from the cheapest usable holding and retries. When the price is below
+   * every holding's route minimum (1Click bridge minimums), it funds a prepaid session once and
+   * meters later calls against it.
+   */
   async call(url: string, init: RequestInit = {}, maxUsd?: number): Promise<PaidResult> {
+    const key = url.split("?")[0]!;
+    const cached = this.sessions.get(key);
+    if (cached) {
+      const r = await this.f(url, { ...init, headers: { ...(init.headers as Record<string, string> | undefined), "PENSTOCK-SESSION": cached.token } });
+      if (r.status !== 402 && r.status !== 410 && r.status !== 401) return this.finish(r, { method: "session", note: r.headers.get("penstock-session-balance") ?? undefined });
+      this.sessions.delete(key);
+    }
     const first = await this.f(url, init);
     if (first.status !== 402) return { status: first.status, body: await readBody(first), paid: false };
     const header = first.headers.get("payment-required");
@@ -144,12 +163,67 @@ export class PenstockBuyer {
     } catch {
       ranked = [];
     }
-    const route = ranked.find((r) => this.canPay(r));
-    if (!route) return { status: 402, body: required, paid: false, note: "no holding can pay this endpoint" };
-    if (maxUsd !== undefined && route.amountInUsd > maxUsd) {
-      return { status: 402, body: required, paid: false, note: `cheapest route costs $${route.amountInUsd.toFixed(4)}, above maxUsd $${maxUsd}` };
+    const price = BigInt(required.accepts.find(isExactNear)?.amount ?? "0");
+    if (maxUsd !== undefined && Number(price) / 1e6 > maxUsd) {
+      return { status: 402, body: required, paid: false, note: `price $${Number(price) / 1e6} is above maxUsd $${maxUsd}` };
     }
+    const route = ranked.find((r) => this.canPay(r));
+    if (route) {
+      if (maxUsd !== undefined && route.amountInUsd > maxUsd) {
+        return { status: 402, body: required, paid: false, note: `cheapest route costs $${route.amountInUsd.toFixed(4)}, above maxUsd $${maxUsd}` };
+      }
+      return this.pay(url, init, required, route);
+    }
+    return this.viaSession(url, init, price, ranked);
+  }
 
+  private hasWallet(r: RankedRoute): boolean {
+    return r.method === "exact-near" ? !!this.o.near : !!this.o.origins?.some((w) => w.chain === r.chain);
+  }
+
+  private async viaSession(url: string, init: RequestInit, price: bigint, ranked: RankedRoute[]): Promise<PaidResult> {
+    const CAP = 5_000_000n;
+    const candidate = ranked
+      .filter((r) => r.minAmountOut && this.hasWallet(r) && BigInt(r.minAmountOut) <= CAP)
+      .sort((a, b) => Number(BigInt(a.minAmountOut!) - BigInt(b.minAmountOut!)))[0];
+    if (!candidate) {
+      const mins = ranked.filter((r) => r.minAmountOut).map((r) => `${r.symbol}@${r.chain} needs at least $${Number(r.minAmountOut) / 1e6}`).join(", ");
+      return { status: 402, body: null, paid: false, note: mins ? `no holding can pay this endpoint (${mins})` : "no holding can pay this endpoint" };
+    }
+    const u = new URL(url);
+    const m = /^\/p\/([a-z0-9-]+)\/([a-z0-9-]+)/.exec(u.pathname)!;
+    // Fund the route minimum (+5% headroom) or 25 calls, whichever is larger, within the cap.
+    let fund = (BigInt(candidate.minAmountOut!) * 105n) / 100n;
+    if (price * 25n > fund) fund = price * 25n;
+    if (fund > CAP) fund = CAP;
+    fund = ((fund + 999n) / 1000n) * 1000n;
+    const openUrl = `${u.origin}/s/${m[1]}/${m[2]}/open/${fund}`;
+    const first = await this.f(openUrl);
+    if (first.status !== 402) return { status: first.status, body: await readBody(first), paid: false, note: "price is below the route minimum and this endpoint does not offer sessions" };
+    const required = decodePaymentRequiredHeader(first.headers.get("payment-required")!) as PaymentRequired;
+    const opened = await this.pay(openUrl, {}, required, candidate);
+    const token = (opened.body as { session?: { token?: string } } | null)?.session?.token;
+    if (!opened.paid || !token) return { ...opened, note: `could not open a session: ${opened.note ?? opened.status}` };
+    this.sessions.set(url.split("?")[0]!, { token, closeUrl: `${u.origin}/s/${m[1]}/${m[2]}/close` });
+    const r = await this.f(url, { ...init, headers: { ...(init.headers as Record<string, string> | undefined), "PENSTOCK-SESSION": token } });
+    return this.finish(r, {
+      method: "session", originChain: opened.originChain, originSymbol: opened.originSymbol, amountIn: opened.amountIn, receipt: opened.receipt, settlement: opened.settlement,
+      note: `opened a $${Number(fund) / 1e6} session via ${opened.method} from ${opened.originSymbol} on ${opened.originChain} (price below the route minimum)`,
+    });
+  }
+
+  /** Closes every session this buyer opened; unused balances are refunded by the seller. */
+  async closeSessions(): Promise<unknown[]> {
+    const out: unknown[] = [];
+    for (const [k, s] of this.sessions) {
+      const r = await this.f(s.closeUrl, { method: "POST", headers: { "PENSTOCK-SESSION": s.token } });
+      out.push(await readBody(r));
+      this.sessions.delete(k);
+    }
+    return out;
+  }
+
+  private async pay(url: string, init: RequestInit, required: PaymentRequired, route: RankedRoute): Promise<PaidResult> {
     if (route.method === "exact-near") {
       const offer = required.accepts.find(isExactNear);
       if (!offer) return { status: 402, body: required, paid: false, note: "seller does not offer exact NEAR" };
@@ -166,8 +240,7 @@ export class PenstockBuyer {
     const qres = await this.f(url, withPayment(init, buildQuotePayload(required, unquoted, wallet.address)));
     const second = (await qres.json().catch(() => null)) as PaymentRequired | null;
     const quoted = second && findQuotedEntry(second, unquoted);
-    if (!quoted) return { status: qres.status, body: second, paid: false, note: "seller did not return a quote" };
-    if (maxUsd !== undefined && route.amountInUsd > maxUsd) return { status: 402, body: second, paid: false, note: "quote above maxUsd" };
+    if (!quoted) return { status: qres.status, body: second, paid: false, note: second?.error ?? "seller did not return a quote" };
     const instructions = depositInstructions(quoted);
 
     let txHash: string;

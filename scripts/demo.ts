@@ -4,7 +4,8 @@
  *   - Penstock proxy          http://localhost:4020
  *   - seller console          http://localhost:4021
  *   - a simulated buyer agent that pays from random chains every few seconds (--no-agent to stop it)
- * Flags: --no-open (do not open a browser), --no-agent, --keep (keep the previous demo ledger).
+ * Flags: --no-open (do not open a browser), --no-agent, --keep (keep the previous demo ledger),
+ *        --mode dry|live (same launcher for the other modes; live requires the variables in .env.example).
  */
 import { spawn } from "node:child_process";
 import { rmSync } from "node:fs";
@@ -15,7 +16,14 @@ import { pathToFileURL } from "node:url";
 import { loadConfig } from "@penstock/core";
 
 const root = resolve(import.meta.dirname, "..");
-const args = new Set(process.argv.slice(2));
+const argv = process.argv.slice(2);
+const args = new Set(argv);
+const modeIdx = argv.indexOf("--mode");
+const MODE = (modeIdx >= 0 ? argv[modeIdx + 1] : "demo") ?? "demo";
+if (!["demo", "dry", "live"].includes(MODE)) {
+  console.error("--mode must be demo, dry or live");
+  process.exit(1);
+}
 const PROXY_PORT = Number(process.env.PORT ?? 4020);
 const CONSOLE_PORT = Number(process.env.CONSOLE_PORT ?? 4021);
 const UPSTREAM_PORT = Number(process.env.UPSTREAM_PORT ?? 4030);
@@ -35,10 +43,10 @@ async function main() {
     }
   }
 
-  const dataDir = join(root, "data", "demo");
-  if (!args.has("--keep")) rmSync(dataDir, { recursive: true, force: true });
+  const dataDir = process.env.DATA_DIR ?? join(root, "data", MODE);
+  if (MODE !== "live" && !args.has("--keep")) rmSync(dataDir, { recursive: true, force: true });
   Object.assign(process.env, {
-    MODE: "demo",
+    MODE,
     PORT: String(PROXY_PORT),
     PUBLIC_URL: `http://localhost:${PROXY_PORT}`,
     CONSOLE_URL: `http://localhost:${CONSOLE_PORT}`,
@@ -55,6 +63,7 @@ async function main() {
 
   const { createProxy } = await import("@penstock/proxy");
   const proxy = createProxy({ config, upstreamBase: `http://127.0.0.1:${UPSTREAM_PORT}` });
+  if (config.mode !== "demo") void proxy.intents.warm().catch(() => undefined);
   await new Promise<void>((r) => proxy.server.listen(PROXY_PORT, r));
 
   const consoleRoot = join(root, "apps", "console");
@@ -65,7 +74,7 @@ async function main() {
 
   const consoleUrl = `http://localhost:${CONSOLE_PORT}/`;
   console.log(`
-  PENSTOCK  demo mode: every quote, deposit and settlement is SIMULATED. No keys, no funds, no network.
+  PENSTOCK  ${config.mode} mode: ${config.mode === "demo" ? "every quote, deposit and settlement is SIMULATED. No keys, no funds, no network." : config.mode === "dry" ? "quotes are REAL 1Click dry quotes; deposits and settlement are SIMULATED. No funds move." : "LIVE on mainnet. Real funds. Use tiny amounts."}
 
   console     ${consoleUrl}
   proxy       http://localhost:${PROXY_PORT}/healthz
@@ -77,24 +86,27 @@ async function main() {
 `);
 
   let agentTimer: NodeJS.Timeout | null = null;
-  if (!args.has("--no-agent")) {
+  if (!args.has("--no-agent") && config.mode !== "live") {
     const { PenstockBuyer, simulatedNearWallet, simulatedOriginWallet, parseHoldings } = await import("@penstock/buyer-mcp");
     const pool = ["base:USDC", "sol:SOL", "arb:USDC", "eth:ETH", "op:USDC", "btc:BTC", "near:USDC", "pol:USDC", "avax:AVAX", "near:wNEAR"];
-    const targets = ["tides?harbor=rotterdam", "geocode?q=singapore", "tides?harbor=lagos", "harbor-brief?harbor=halifax"];
+    const targets = ["tides?harbor=rotterdam", "voyage-plan?harbor=singapore", "geocode?q=singapore", "tides?harbor=lagos", "harbor-brief?harbor=halifax"];
     const base = `http://localhost:${PROXY_PORT}`;
     let n = 0;
+    // One persistent agent per holding, each with its own identity, so sessions it opens are reused.
+    const agents = new Map<string, InstanceType<typeof PenstockBuyer>>();
     const tick = async () => {
       const holding = pool[n % pool.length]!;
       const target = targets[n % targets.length]!;
       n++;
       const hs = parseHoldings(holding);
-      const buyer = new PenstockBuyer({
-        directories: [`${base}/.well-known/penstock.json`], holdings: hs, near: simulatedNearWallet(`sim-agent-${n % 7}.near`),
-        origins: hs.filter((h) => h.chain !== "near").map((h) => simulatedOriginWallet(h.chain, base)),
+      const buyer = agents.get(holding) ?? new PenstockBuyer({
+        directories: [`${base}/.well-known/penstock.json`], holdings: hs, near: simulatedNearWallet(`sim-agent-${agents.size}.near`),
+        origins: hs.filter((h) => h.chain !== "near").map((h) => simulatedOriginWallet(h.chain, base)), userAgent: `penstock-demo-agent/${holding}`,
       });
+      agents.set(holding, buyer);
       try {
         const r = await buyer.call(`${base}/p/tidewater/${target}`);
-        console.log(`  agent  ${r.paid ? "paid" : "did not pay"}  ${target.split("?")[0]!.padEnd(13)} from ${holding.padEnd(10)} ${r.paid ? `via ${r.method}` : (r.note ?? "")}  [simulated]`);
+        console.log(`  agent  ${r.paid ? "paid" : "did not pay"}  ${target.split("?")[0]!.padEnd(13)} from ${holding.padEnd(10)} ${r.paid ? `via ${r.method}${r.method === "session" && r.note?.startsWith("opened") ? " (opened: price below the bridge minimum)" : ""}` : (r.note ?? "")}  [simulated]`);
       } catch (e) {
         console.log(`  agent  error ${(e as Error).message}`);
       }

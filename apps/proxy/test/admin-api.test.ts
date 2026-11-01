@@ -19,7 +19,7 @@ describe("seller console API", () => {
     expect(o.account).toMatchObject({ exists: true, method: "simulated" });
     expect(BigInt(o.receivedUsdc)).toBeGreaterThan(0n);
     expect(o.payments).toBeGreaterThanOrEqual(400);
-    expect(o.byChain.length).toBeGreaterThanOrEqual(8);
+    expect(o.byChain.length).toBeGreaterThanOrEqual(7);
     expect(o.daily).toHaveLength(30);
     expect(o.conversion).toBeGreaterThan(0);
     expect(o.conversion).toBeLessThan(1);

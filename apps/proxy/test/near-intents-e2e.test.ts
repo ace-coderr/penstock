@@ -10,7 +10,7 @@ beforeAll(async () => {
 });
 afterAll(() => h.stop());
 
-const URL_TIDES = () => `${h.base}/p/tidewater/tides?harbor=lagos`;
+const URL_TIDES = () => `${h.base}/p/tidewater/voyage-plan?harbor=lagos`;
 const REFUND_TO = "0x2527D02599Ba641c19FEa793cD0F167589a0f10D";
 
 async function simDeposit(depositAddress: string, amount: string): Promise<string> {
@@ -36,8 +36,8 @@ describe("near-intents end to end (demo mode, simulated 1Click)", () => {
     expect(unquoted.extra.indicativeAmount).toMatch(/^\d+$/);
     expect(second.error).toMatch(/quote issued/);
     expect(quoted.payTo.startsWith("sim")).toBe(true);
-    expect(BigInt(quoted.amount)).toBeGreaterThan(4000n);
-    expect(quoted.extra).toMatchObject({ assetTransferMethod: "near-intents", paymentFlow: "upfront", destination: { amount: "4000", recipient: "tidewater-data.near" } });
+    expect(BigInt(quoted.amount)).toBeGreaterThan(250000n);
+    expect(quoted.extra).toMatchObject({ assetTransferMethod: "near-intents", paymentFlow: "upfront", destination: { amount: "250000", recipient: "tidewater-data.near" } });
 
     const d = depositInstructions(quoted);
     const txHash = await simDeposit(d.payTo, d.amount);
@@ -45,12 +45,12 @@ describe("near-intents end to end (demo mode, simulated 1Click)", () => {
     expect(res.status).toBe(200);
     expect(((await res.json()) as { harbour: string }).harbour).toBe("Lagos");
     const settle = decodePaymentResponseHeader(res.headers.get("payment-response")!);
-    expect(settle).toMatchObject({ success: true, network: "near:mainnet", amount: "4000", extra: { originNetwork: "eip155:8453", originTxHash: txHash } });
+    expect(settle).toMatchObject({ success: true, network: "near:mainnet", amount: "250000", extra: { originNetwork: "eip155:8453", originTxHash: txHash } });
     expect(JSON.stringify(settle)).not.toContain(d.operationToken);
     const receipt = JSON.parse(Buffer.from(res.headers.get("penstock-receipt")!, "base64url").toString());
     expect(verifyReceipt(receipt)).toBe(true);
     const p = h.proxy.store.getPayment(receipt.body.paymentId)!;
-    expect(p).toMatchObject({ method: "near-intents", originChain: "base", status: "settled", amountOut: "4000", depositAddress: d.payTo, simulated: true });
+    expect(p).toMatchObject({ method: "near-intents", originChain: "base", status: "settled", amountOut: "250000", depositAddress: d.payTo, simulated: true });
     expect(p.feeUsd).toBeGreaterThan(0);
 
     // Presenting the same deposit again must not run the resource a second time.
@@ -103,7 +103,7 @@ describe("near-intents end to end (demo mode, simulated 1Click)", () => {
     const { required, unquoted, quoted } = await quoteFor("eip155:8453");
     const d = depositInstructions(quoted);
     const txHash = await simDeposit(d.payTo, d.amount);
-    const other = `${h.base}/p/tidewater/geocode?q=lagos`;
+    const other = `${h.base}/p/ferrous/filing-extract?ticker=acme`;
     const { required: otherReq } = await get402(other);
     const otherUnquoted = otherReq.accepts.find((a) => isUnquoted(a) && a.network === unquoted.network && a.asset === unquoted.asset)!;
     const res = await fetch(other, paidInit(buildDepositPayload(otherReq, otherUnquoted, d, txHash)));
@@ -112,12 +112,23 @@ describe("near-intents end to end (demo mode, simulated 1Click)", () => {
     void required;
   });
 
-  it("ranks routes to USDC on NEAR with quote, fee and time", async () => {
-    const r = await fetch(`${h.base}/api/public/routes?endpoint=tidewater.tides&from=near:USDC,base:USDC,btc:BTC,sol:SOL`);
-    const body = (await r.json()) as { cheapest: { chain: string }; routes: { chain: string; feeUsd: number; timeEstimateSec: number }[]; simulated: boolean };
+  it("ranks routes to USDC on NEAR with quote, fee and time, and flags route minimums", async () => {
+    const r = await fetch(`${h.base}/api/public/routes?endpoint=tidewater.voyage-plan&from=near:USDC,base:USDC,btc:BTC,sol:SOL`);
+    const body = (await r.json()) as { cheapest: { chain: string }; routes: { chain: string; feeUsd: number; timeEstimateSec: number; minAmountOut?: string }[]; simulated: boolean };
     expect(body.simulated).toBe(true);
     expect(body.cheapest.chain).toBe("near");
     expect(body.routes).toHaveLength(4);
-    expect(body.routes.every((x) => x.timeEstimateSec > 0)).toBe(true);
+    expect(body.routes.filter((x) => x.chain !== "btc").every((x) => x.timeEstimateSec > 0)).toBe(true);
+    expect(body.routes.find((x) => x.chain === "btc")!.minAmountOut).toBe("6454605");
+  });
+
+  it("refuses a per-call quote below the route minimum and points to a session", async () => {
+    const url = `${h.base}/p/tidewater/tides?harbor=lagos`;
+    const { required } = await get402(url);
+    const unquoted = required.accepts.find((a) => isUnquoted(a) && a.network === "eip155:8453" && a.asset === "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913")!;
+    const res = await fetch(url, paidInit(buildQuotePayload(required, unquoted, REFUND_TO)));
+    const err = ((await res.json()) as { error: string }).error;
+    expect(err).toMatch(/below the Base route minimum of 0.14999 USDC/);
+    expect(err).toContain(`${h.base}/s/tidewater/tides/open/`);
   });
 });

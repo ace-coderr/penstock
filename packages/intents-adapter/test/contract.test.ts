@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { CHAINS, DESTINATION, Store, assetOn, chainByKey, type PaymentRequirements } from "@penstock/core";
 import {
   DryOneClick, HttpOneClick, NearIntentsMethod, OneClickError, RoutePlanner, SimulatedOneClick, TokenPricePricer,
-  destinationHash, mintOperationToken, recordedTokens, verifyOperationToken, type KeyRing, type QuoteRequest,
+  destinationHash, mintOperationToken, parseRouteMinimum, recordedTokens, verifyOperationToken, type KeyRing, type QuoteRequest,
 } from "../src/index";
 
 const fx = (name: string) => readFileSync(new URL(`../fixtures/${name}`, import.meta.url), "utf8");
@@ -165,7 +165,7 @@ describe("SimulatedOneClick follows the real API's validation and status machine
 describe("NearIntentsMethod", () => {
   const keys: KeyRing = { currentKeyId: "k1", keys: new Map([["k1", Buffer.alloc(32, 3)]]) };
   const seller = { id: "s", name: "S", nearAccount: "seller.near", description: "", origin: "", simulated: true };
-  const endpoint = { id: "s.e", sellerId: "s", slug: "e", kind: "http" as const, description: "", capabilities: [], priceUsdc: "5000", upstreamUrl: "http://x", methods: ["GET"], sessionsEnabled: false, resaleOf: [] };
+  const endpoint = { id: "s.e", sellerId: "s", slug: "e", kind: "http" as const, description: "", capabilities: [], priceUsdc: "250000", upstreamUrl: "http://x", methods: ["GET"], sessionsEnabled: false, resaleOf: [] };
   const resource = { url: "http://p/p/s/e" };
 
   it("offers one unquoted entry per origin with vacant amount and payTo", async () => {
@@ -173,7 +173,7 @@ describe("NearIntentsMethod", () => {
     const offers = await m.offers(endpoint, seller, resource);
     expect(offers.length).toBe(CHAINS.reduce((n, c) => n + c.assets.length, 0) - 1);
     for (const o of offers) {
-      expect(o).toMatchObject({ scheme: "exact", amount: "", payTo: "", extra: { assetTransferMethod: "near-intents", paymentFlow: "upfront", destination: { network: "near:mainnet", asset: DESTINATION.asset, amount: "5000", recipient: "seller.near" } } });
+      expect(o).toMatchObject({ scheme: "exact", amount: "", payTo: "", extra: { assetTransferMethod: "near-intents", paymentFlow: "upfront", destination: { network: "near:mainnet", asset: DESTINATION.asset, amount: "250000", recipient: "seller.near" } } });
       expect(o.extra.indicativeAmount).toMatch(/^\d+$/);
     }
   });
@@ -194,7 +194,7 @@ describe("NearIntentsMethod", () => {
     const deposit = { x402Version: 2, resource, accepted: req, payload: { type: "deposit", operationToken: q.extra.operationToken, depositAddress: q.payTo, txHash } };
     const settled = await m.process(deposit, req, ctx, meta);
     expect(settled.kind).toBe("settled");
-    expect(settled).toMatchObject({ settle: { success: true, network: "near:mainnet", amount: "5000", extra: { originNetwork: "eip155:8453", originTxHash: txHash } } });
+    expect(settled).toMatchObject({ settle: { success: true, network: "near:mainnet", amount: "250000", extra: { originNetwork: "eip155:8453", originTxHash: txHash } } });
     const again = await m.process(deposit, req, ctx, meta);
     expect(again.kind).toBe("settled"); // recorded result returned unchanged; the paywall refuses to execute it twice
     const forged = await m.process({ ...deposit, payload: { ...deposit.payload, operationToken: String(q.extra.operationToken).slice(0, -2) + "xx" } }, req, ctx, meta);
@@ -212,14 +212,27 @@ describe("NearIntentsMethod", () => {
 describe("RoutePlanner", () => {
   it("ranks the buyer's holdings by USD spent and puts NEAR USDC first at zero fee", async () => {
     const routes = await new RoutePlanner(new SimulatedOneClick()).rank(
-      [{ chain: "btc", symbol: "BTC" }, { chain: "base", symbol: "USDC" }, { chain: "near", symbol: "USDC" }, { chain: "sol", symbol: "SOL", balance: "1" }],
-      5000n, "seller.near",
+      [{ chain: "eth", symbol: "USDC" }, { chain: "base", symbol: "USDC" }, { chain: "near", symbol: "USDC" }, { chain: "sol", symbol: "SOL", balance: "1" }],
+      400000n, "seller.near",
     );
     expect(routes[0]).toMatchObject({ chain: "near", method: "exact-near", feeUsd: 0 });
-    expect(routes.at(-1)).toMatchObject({ chain: "sol", affordable: false });
+    expect(routes.find((r) => r.chain === "sol")).toMatchObject({ affordable: false });
     const base = routes.find((r) => r.chain === "base")!;
-    const btc = routes.find((r) => r.chain === "btc")!;
-    expect(base.amountInUsd).toBeLessThan(btc.amountInUsd);
+    const eth = routes.find((r) => r.chain === "eth")!;
+    expect(base.amountInUsd).toBeLessThan(eth.amountInUsd);
     expect(base.timeEstimateSec).toBeGreaterThan(0);
+  });
+
+  it("reports each route's 1Click bridge minimum instead of failing opaquely", async () => {
+    const routes = await new RoutePlanner(new SimulatedOneClick()).rank([{ chain: "btc", symbol: "BTC" }, { chain: "near", symbol: "wNEAR" }, { chain: "base", symbol: "USDC" }], 4000n, "seller.near");
+    expect(routes.find((r) => r.chain === "btc")).toMatchObject({ minAmountOut: "6454605" });
+    expect(routes.find((r) => r.chain === "base")!.error).toMatch(/route minimum of 0.14999 USDC: use a prepaid session/);
+    expect(routes[0]).toMatchObject({ chain: "near", symbol: "wNEAR" });
+    expect(routes[0]!.error).toBeUndefined();
+  });
+
+  it("parses the real 1Click minimum error", () => {
+    expect(parseRouteMinimum("1Click HTTP 400: Amount is too low for bridge, try at least 149990")).toBe(149990n);
+    expect(parseRouteMinimum("1Click HTTP 400: Internal server error")).toBeNull();
   });
 });

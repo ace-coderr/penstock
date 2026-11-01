@@ -125,7 +125,7 @@ export function createUpstreamServer(): Server {
         case "/brief": {
           // Composer for the resale endpoint: Penstock pays the upstream sellers and passes their results here.
           const body = JSON.parse((await readBody(req)) || "{}") as { query?: Record<string, string>; upstream?: { url: string; status: number; body: unknown }[] };
-          const h = harbour(body.query?.harbor ?? body.query?.harbour ?? null) ?? harbour("rotterdam")!;
+          const h = harbour(body.query?.harbor ?? body.query?.harbour ?? url.searchParams.get("harbor")) ?? harbour("rotterdam")!;
           return send(res, 200, {
             harbour: h.name, locode: h.locode, tides: tides(h.key, now).slice(0, 2),
             weather: body.upstream?.[0]?.body ?? null, notice: body.upstream?.[1]?.body ?? null, sample: true,

@@ -122,7 +122,7 @@ export function createProxy(opts: ProxyOptions = {}): Proxy {
       }
     }
 
-    if (path.startsWith("/api/public/")) return handlePublicApi(ctx, intents, req, res, url);
+    if (path.startsWith("/api/public/")) return handlePublicApi(ctx, intents, accounts, req, res, url);
     if (path.startsWith("/api/admin/")) return handleAdminApi(ctx, accounts, req, res, url);
 
     throw new HttpError(404, "not found", "not_found");

@@ -89,12 +89,15 @@ export async function runSelftest(o: SelftestOptions): Promise<SelftestResult> {
     try {
       const routes: RankedRoute[] = await buyer.routes(url.href);
       const best = routes.find((r) => !r.error);
-      add("Cheapest route quoted", !!best, best ? `${best.symbol} on ${best.chainLabel}: pay ${best.amountInFormatted} ${best.symbol} (≈$${best.amountInUsd.toFixed(6)}), fee $${best.feeUsd.toFixed(6)}, ~${best.timeEstimateSec}s [${best.source}]` : "no route");
+      const viaSession = routes.filter((r) => r.minAmountOut).sort((x, y) => Number(BigInt(x.minAmountOut!) - BigInt(y.minAmountOut!)))[0];
+      add("Cheapest route quoted", !!(best || viaSession), best
+        ? `${best.symbol} on ${best.chainLabel}: pay ${best.amountInFormatted} ${best.symbol} (≈$${best.amountInUsd.toFixed(6)}), fee $${best.feeUsd.toFixed(6)}, ~${best.timeEstimateSec}s [${best.source}]`
+        : viaSession ? `price is below every 1Click bridge minimum; smallest is ${viaSession.symbol} on ${viaSession.chainLabel} at $${Number(viaSession.minAmountOut) / 1e6}, so a prepaid session is funded [${viaSession.source}]` : "no route");
     } catch (e) {
       add("Cheapest route quoted", false, (e as Error).message);
     }
     const r = await buyer.call(url.href, {}, o.maxUsd);
-    add("Paid and got the resource", r.paid && r.status === 200, r.paid ? `HTTP 200 via ${r.method} from ${r.originSymbol} on ${r.originChain} [simulated]` : `HTTP ${r.status}: ${r.note ?? JSON.stringify(r.body).slice(0, 160)}`);
+    add("Paid and got the resource", r.paid && r.status === 200, r.paid ? `HTTP 200 via ${r.method} from ${r.originSymbol} on ${r.originChain}${r.method === "session" ? ` (${r.note})` : ""} [simulated]` : `HTTP ${r.status}: ${r.note ?? JSON.stringify(r.body).slice(0, 160)}`);
     add("Settlement reported", !!r.settlement?.success, r.settlement ? `PAYMENT-RESPONSE success=${r.settlement.success} network=${r.settlement.network} tx=${r.settlement.transaction.slice(0, 24)}…` : "no PAYMENT-RESPONSE header");
     const receipt = r.receipt as Parameters<typeof verifyReceipt>[0] | undefined;
     add("Signed receipt verifies", !!receipt && verifyReceipt(receipt), receipt ? `ed25519 over ${Object.keys(receipt.body).length} fields` : "no PENSTOCK-RECEIPT header");

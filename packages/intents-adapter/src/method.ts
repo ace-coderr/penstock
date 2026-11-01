@@ -1,10 +1,10 @@
 import { randomUUID } from "node:crypto";
 import {
-  CHAINS, DESTINATION, chainByCaip2, assetOn, isValidAddress, log,
+  CHAINS, DESTINATION, chainByCaip2, assetOn, formatUnits, isValidAddress, log,
   type AssetInfo, type ChainInfo, type Endpoint, type MethodContext, type MethodMeta, type MethodOutcome, type PaymentMethodHandler,
   type PaymentPayload, type PaymentRequirements, type ResourceInfo, type Seller, type SettleResponse,
 } from "@penstock/core";
-import { OneClickError, TERMINAL_STATUSES, type Confidentiality, type OneClick, type QuoteRequest, type StatusResponse } from "./oneclick";
+import { OneClickError, TERMINAL_STATUSES, parseRouteMinimum, type Confidentiality, type OneClick, type QuoteRequest, type StatusResponse } from "./oneclick";
 import { mintOperationToken, verifyOperationToken, type Destination, type KeyRing } from "./token";
 import type { IndicativePricer } from "./pricing";
 
@@ -144,6 +144,13 @@ export class NearIntentsMethod implements PaymentMethodHandler {
       quote = await this.o.oneClick.quote(qreq);
     } catch (e) {
       const msg = e instanceof OneClickError ? e.message : "1Click unavailable";
+      const min = parseRouteMinimum(msg);
+      if (min !== null) {
+        return {
+          kind: "rejected", reason: "invalid_exact_near_intents_quote_unavailable",
+          message: `below the ${chain.label} route minimum of ${formatUnits(min, DESTINATION.decimals)} USDC; fund a prepaid session of at least that amount, or pay from NEAR`,
+        };
+      }
       return { kind: "rejected", reason: "invalid_exact_near_intents_quote_unavailable", message: msg };
     }
     // The echoed request must carry our destination terms; anything else is not our quote.
