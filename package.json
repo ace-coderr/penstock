@@ -20,7 +20,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit && pnpm --filter @penstock/console typecheck",
     "lint": "eslint .",
     "check": "pnpm lint && pnpm typecheck && pnpm test",
-    "buyer-mcp": "pnpm --filter @penstock/buyer-mcp start",
+    "buyer-mcp": "tsx packages/buyer-mcp/src/server.ts",
     "start:dry": "tsx --env-file-if-exists=.env scripts/demo.ts --mode dry",
     "start:live": "tsx --env-file=.env scripts/demo.ts --mode live --no-agent"
   },
