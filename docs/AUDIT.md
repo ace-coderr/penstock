@@ -1,0 +1,53 @@
+# Audit
+
+This is a self-audit of Penstock at the end of development, done on 2026-11-01. Each item says what was checked and how. "Fixed" means a code change landed with a regression test. "Held" means the existing design already handled it and a test proves it. "Remains" means it is not solved and is stated plainly.
+
+Tests: `pnpm test` runs 85 tests in 13 files. The audit-specific tests are in `apps/proxy/test/audit.test.ts`.
+
+## Results
+
+| # | Area | Finding | Status |
+| --- | --- | --- | --- |
+| 1 | Open proxy | Upstream URLs come only from seller config, never from the request. The request can add only a sub-path and query string. | Held (`paywall-exact`, `upstream` tests) |
+| 2 | SSRF: path tricks | `..`, `%2f`, `%2e`, backslashes and control characters in the sub-path are refused. The final URL must keep the configured origin and path prefix. | Held (`upstream.test.ts`) |
+| 3 | SSRF: internal targets | Metadata (169.254/16), `0.0.0.0/8` and multicast are always refused. Private and loopback addresses are refused in live mode, at connect time through a custom DNS lookup, which also defeats DNS rebinding. Redirects are not followed. Responses are capped at 5 MB with a 15 s timeout. | Held |
+| 4 | SSRF: self-loop | An endpoint's upstream could point at the proxy itself, including `/api/admin`, which trusts loopback when no token is set. | **Fixed**: loopback upstreams on the proxy's own port are refused |
+| 5 | Upstream registration | New endpoints are checked: http(s) only, https only in live mode, no credentials in the URL, no fragments, no internal hostnames in live mode. | Held (`admin-api.test.ts`) |
+| 6 | Replay | Re-sending a settled `exact` payload is refused (`payment_already_used`). Re-sending a settled near-intents deposit returns the recorded result, and the resource refuses to run twice (`exact_near_intents_operation_executed`). | Held (`paywall-exact`, `near-intents-e2e`) |
+| 7 | Double settlement | Six concurrent copies of one signed payment produce exactly one 200 and one ledger row. Claims expire, and a worker whose claim expired cannot record a result. `markExecuted` is a conditional UPDATE. | Held (`audit.test.ts`, `core.test.ts`) |
+| 8 | Deposit-address idempotency | An operation is keyed by its instrument `network:depositAddress[:memo]`. The ledger enforces `UNIQUE(deposit_address)` and `UNIQUE(operation_id)`. One session-opening payment cannot open two sessions. | Held (`audit.test.ts`) |
+| 9 | Quote expiry race | A deposit that lands after `refundDeadline` is refunded by 1Click (`DEADLINE_PASSED`) and booked as a refund. The token stays valid for 24 h after the deadline, so a late presentation gets a clear failure instead of "invalid token". | Held (`audit.test.ts`) |
+| 10 | Price tampering | For `exact`, a lowered amount or a changed payee in `accepted` is refused. For near-intents, editing `accepted.extra.destination` has no effect: quotes and token MACs use the server's own destination. The echoed 1Click quote request is checked against the seller's terms, both at quote time and at settlement. | Held (`paywall-exact`, `audit.test.ts`) |
+| 11 | Forged payment | A delegate that pays `attacker.near` while claiming the seller's terms is refused by the official `@x402/near` verification. | Held |
+| 12 | Header injection | Penstock sets only computed ASCII header values, and anything with CR/LF is dropped. Forwarded request headers use an allowlist (`accept`, `accept-language`, `content-type`, `user-agent`). Upstream response headers use an allowlist too. `PAYMENT-SIGNATURE` is capped at 16 KB. | Held (`upstream.test.ts`) |
+| 13 | Session cap | The funding amount must be between one call and the cap (default $5). Metering is a single conditional UPDATE, so 12 concurrent calls on a 5-call balance give exactly 5 successes. | Held (`sessions.test.ts`) |
+| 14 | Session/refund abuse | Closing twice refunds once. Calls after close or expiry are refused. A token works only on its own endpoint. Tokens are 32 random bytes, stored only as a SHA-256 hash and compared in constant time. A buyer can hold at most 3 open sessions per endpoint, checked before payment is taken. | Held (`sessions.test.ts`) |
+| 15 | Operation-token secret | Live mode refuses to start without 32+ bytes. The MAC is compared on the canonical string in constant time, and non-canonical base64url spellings are refused. Expiry is checked before any lookup. The token never appears in receipts or settlement headers. | Held (`contract.test.ts`, `audit.test.ts`) |
+| 16 | Secret reuse | The operation-token secret was also used to key buyer handles. | **Fixed**: buyer handles use a derived key (`HMAC(secret, "penstock/buyer-handle/v1")`) |
+| 17 | Token key id | A key id containing `.` would produce unparseable tokens. | **Fixed**: `OPERATION_TOKEN_KEY_ID` is validated (1–16 of `[A-Za-z0-9_-]`) |
+| 18 | Rate limiting | The quote limit was keyed by IP and User-Agent, so rotating the User-Agent bypassed it. Quotes cost a 1Click call each. | **Fixed**: quote minting is limited per client IP. Separate buckets exist for requests, quotes, the routes API, session calls and admin. |
+| 19 | Admin CSRF | The admin API parsed a `text/plain` POST as JSON, so any web page could create endpoints on a local demo. | **Fixed**: writes require `application/json`, which a cross-site request cannot send without a CORS preflight |
+| 20 | Admin DNS rebinding | Token-less loopback access did not check the Host header. | **Fixed**: token-less access requires a localhost Host |
+| 21 | Admin behind a proxy | Behind a reverse proxy, every request looks like loopback. | **Fixed**: token-less access is refused if `X-Forwarded-For` or `Forwarded` is present or `TRUST_PROXY=true`. Live mode always requires `ADMIN_TOKEN` (24+ characters). |
+| 22 | Demo exposed to the network | Demo and dry mode accept simulated payments, which are effectively free. The proxy listened on all interfaces. | **Fixed**: demo and dry bind to `127.0.0.1` by default (`HOST`); live binds to `0.0.0.0` |
+| 23 | MCP unpaid passthrough | Every JSON-RPC method other than `tools/call` was forwarded free, so `resources/read` could fetch paid content without paying. | **Fixed**: only `initialize`, `ping`, `tools/list` and `notifications/initialized` are free. Everything else except a paid `tools/call` is refused. |
+| 24 | Opaque 1Click failures | Real 1Click answers a quote to a missing NEAR account with HTTP 400 "Internal server error". It answers small amounts with "too low for bridge" (seen live). | **Fixed**: the payout account is checked before any quote (RPC `view_account`). Route minimums are parsed and explained. Micro-priced calls fund a session automatically. |
+| 25 | Secrets in the repository | A generated demo receipt-signing key (`data/demo/receipt-key.pem`) and the demo SQLite ledger were committed in two local commits. `.gitignore` covered only `data/runtime/`. They were never pushed. The key signs only simulated demo receipts. | **Fixed**: `data/` stripped from the unpushed commits (`git filter-branch`), backup refs and reflog pruned, `.gitignore` now covers all of `data/`. The history scan finds no keys. |
+| 26 | Personal data and logs | Commits use the GitHub noreply address. No email, name or credential appears in the tree or history. The logger redacts keys matching token, secret, signature, authorization, key or jwt. Buyers are stored as keyed hashes, never IPs. Error logs omit query strings. | Held (scanned with `git log -p --all`) |
+| 27 | Dependencies | `pnpm audit` reported `minimatch <11.0.1` (moderate, through eslint, dev only) and `elliptic <=6.6.1` (low, through `@near-js/crypto` → `secp256k1`). | **Fixed** minimatch with an override to 11.0.3. **Remains**: elliptic has no patched release. Penstock signs with ed25519 only and never uses secp256k1. |
+| 28 | Console error and empty states | When the proxy is down, the dev server answers 502 with no JSON. The console showed "HTTP 502". | **Fixed**: shows "Proxy not reachable: start with `pnpm demo`" with a Retry button. Empty states exist for payments, filters, funnel, sessions and endpoints. A 401 explains `ADMIN_TOKEN`. |
+| 29 | Keyboard | All actions are native buttons, links or inputs, with a visible focus ring. The receipt drawer takes focus, closes on Escape and restores focus. Daily bars are focusable with labels. The flow diagram has a title and a text description. | Held (checked in the browser) |
+| 30 | Mobile layout | At 375 px, no tab scrolls the page horizontally (checked: `scrollWidth == clientWidth` on all five tabs). Tables scroll inside their own frame, and low-value columns hide. | Held (checked in the browser) |
+| 31 | Clean-clone run | Fresh `git clone` into an empty folder, then `pnpm install` → `pnpm test` (85 passed) → lint and typecheck clean → `pnpm demo` → README steps 4–8 (402 with 19 entries, both self-tests PASS, CSV with 480 rows, console with 8 chains). | Held |
+
+## What remains
+
+- **Quote signatures:** 1Click's ed25519 quote `signature` is not verified. The verifying key is not in the documentation read. The echoed quote terms are checked instead.
+- **Origin-chain observation:** Penstock trusts 1Click `GET /v0/status` for deposit detection. The near-intents draft asks the facilitator to observe the origin chain itself.
+- **Single-node claims:** exactly-once guarantees hold within one SQLite ledger. Several proxy instances would need one shared database.
+- **Upfront flow:** if the upstream fails after settlement, the buyer has paid and the operation is marked executed. The buyer keeps a signed receipt, and recovery is between buyer and seller. This is the documented behaviour of the `upfront` payment flow.
+- **Session trust:** the seller holds session funds (at most the cap) until close. In live mode refunds are "owed" and the seller sends them. An escrow contract would remove this trust; it is not built.
+- **Header size:** the 402 `PAYMENT-REQUIRED` header is about 10 KB. Some reverse proxies need larger header buffers.
+- **Demo and dry are not paid services:** anyone who can reach them can make simulated deposits. They bind to loopback by default; do not expose them.
+- **Live end to end:** live mode has not been run against mainnet with funds. Dry mode was run against the real 1Click API.
+- **Not built yet:** agent-to-agent resale and the shielded-payer routes come next.
