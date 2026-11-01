@@ -151,7 +151,7 @@ td.wrap { white-space: normal; min-width: 240px; }
   .kpi { border-left: 0; border-top: var(--border); }
   .kpi:nth-child(-n + 2) { border-top: 0; }
   .kpi:nth-child(even) { border-left: var(--border); }
-  .grid-2, .form-grid { grid-template-columns: 1fr; }
+  .grid-2, .form-grid { grid-template-columns: minmax(0, 1fr); }
   .form-grid .wide { grid-column: auto; }
 }
 @media (max-width: 600px) {
