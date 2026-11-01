@@ -16,11 +16,10 @@ export function Section({ idx, title, aside, children }: { idx: string; title: s
 }
 
 export function Chain({ chain }: { chain: string }) {
-  const m = CHAIN_META[chain] ?? { label: chain, tag: chain.slice(0, 3).toUpperCase(), color: "#888" };
+  const m = CHAIN_META[chain] ?? { label: chain, tag: chain.slice(0, 3).toUpperCase() };
   return (
     <span className="chain" title={m.label}>
-      <i style={{ background: m.color }} aria-hidden="true" />
-      <b>{m.tag}</b>
+      <b aria-label={m.label}>{m.tag}</b>
     </span>
   );
 }
@@ -46,8 +45,8 @@ export function ErrorState({ error, onRetry }: { error: ApiError; onRetry: () =>
   const unreachable = error.status === 0;
   const unauthorized = error.status === 401;
   return (
-    <div className="state" role="alert">
-      <strong>{unreachable ? "Proxy not reachable" : unauthorized ? "Admin token needed" : "Could not load"}</strong>
+    <div className="state state-error" role="alert">
+      <span className="state-title">{unreachable ? "Proxy not reachable" : unauthorized ? "Admin token needed" : "Could not load"}</span>
       {unreachable ? (
         <p>The console reads from the Penstock proxy on port 4020. Start everything with <code>pnpm demo</code>, then retry.</p>
       ) : unauthorized ? (
@@ -63,8 +62,8 @@ export function ErrorState({ error, onRetry }: { error: ApiError; onRetry: () =>
 export function Empty({ title, children }: { title: string; children: ReactNode }) {
   return (
     <div className="state">
-      <strong>{title}</strong>
-      <div>{children}</div>
+      <span className="state-title">{title}</span>
+      <p>{children}</p>
     </div>
   );
 }

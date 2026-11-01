@@ -1,0 +1,91 @@
+/*
+ * Penstock design tokens. Every colour, font, size, space, radius and border in the
+ * console and the landing page comes from here; components never hard-code them.
+ *
+ * Dark theme only. One accent, cyan-teal, reserved for primary buttons, active states,
+ * flow lines and key chips. Status colours (ok / warn / bad) are semantic, not accents.
+ *
+ * Contrast (WCAG 2.x), measured against --bg / --surface-1 / --surface-2:
+ *   --text 16.5 / 15.7 / 14.8   --text-2 8.7 / 8.3 / 7.8   --text-3 5.8 / 5.5 / 5.2
+ *   --accent 10.6 / 10.1 / 9.5  --ok 10.8   --warn 10.1   --bad 8.0
+ *   --accent-ink on --accent 9.0   --line-input on --surface-1 3.2 (form field boundary, 3:1 rule)
+ */
+:root {
+  color-scheme: dark;
+
+  /* surfaces */
+  --bg: #0a0b0d;
+  --surface-1: #101215;
+  --surface-2: #16191d;
+  --surface-3: #1c2025;
+
+  /* hairlines */
+  --line: #22262c;
+  --line-strong: #30363e;
+  --line-input: #5c636c;
+
+  /* text */
+  --text: #ecebe6;
+  --text-2: #a8adb4;
+  --text-3: #868b93;
+
+  /* the one accent */
+  --accent: #4fd1c5;
+  --accent-hover: #7fe0d6;
+  --accent-ink: #04221f;
+  --accent-wash: rgba(79, 209, 197, 0.09);
+  --accent-line: rgba(79, 209, 197, 0.38);
+
+  /* status (semantic) */
+  --ok: #8fcf9a;
+  --warn: #dcb46c;
+  --warn-wash: rgba(220, 180, 108, 0.1);
+  --warn-line: rgba(220, 180, 108, 0.42);
+  --bad: #ec8a80;
+  --bad-wash: rgba(236, 138, 128, 0.1);
+  --bad-line: rgba(236, 138, 128, 0.45);
+
+  /* type */
+  --font-serif: "Newsreader", "Source Serif 4", Georgia, serif;
+  --font-sans: "Geist Sans", "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  --fs-2xs: 11px;
+  --fs-xs: 12px;
+  --fs-sm: 13px;
+  --fs-base: 15px;
+  --fs-md: 17px;
+  --fs-lg: 20px;
+  --fs-xl: 28px;
+  --fs-2xl: clamp(30px, 4vw, 44px);
+  --fs-hero: clamp(40px, 6.2vw, 78px);
+  --lh-tight: 1.08;
+  --lh-body: 1.55;
+
+  /* space (4px grid) */
+  --s-1: 4px;
+  --s-2: 8px;
+  --s-3: 12px;
+  --s-4: 16px;
+  --s-5: 24px;
+  --s-6: 32px;
+  --s-7: 48px;
+  --s-8: 72px;
+  --s-9: 112px;
+
+  /* shape */
+  --radius-sm: 4px;
+  --radius: 6px;
+  --radius-lg: 10px;
+  --radius-pill: 999px;
+  --border: 1px solid var(--line);
+  --border-strong: 1px solid var(--line-strong);
+
+  /* layout */
+  --frame: 1200px;
+  --gutter: clamp(16px, 3vw, 32px);
+  --focus: 0 0 0 2px var(--bg), 0 0 0 4px var(--accent);
+
+  /* motion */
+  --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
+  --flow-speed: 3.2s;
+}

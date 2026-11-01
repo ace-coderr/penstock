@@ -26,18 +26,18 @@ export function Flow({ rows, account, simulated }: { rows: ChainRow[]; account: 
         const d = `M ${startX} ${y} C ${startX + 170} ${y}, ${sink.x - 170} ${sink.y}, ${sink.x} ${sink.y}`;
         return (
           <g key={r.chain}>
-            <rect x={8} y={y - 11} width={4} height={22} fill={r.color} rx={1} />
+            <rect x={8} y={y - 11} width={2} height={22} className="flow-tick" />
             <text x={20} y={y - 1} className="flow-tag">{r.tag}</text>
             <text x={20} y={y + 12} className="flow-label">{r.count} pay{r.refunded ? ` · ${r.refunded} ref` : ""}</text>
             <text x={startX - 10} y={y + 4} className="flow-amt" textAnchor="end">{usdc(r.receivedUsdc, 2)}</text>
-            <path d={d} className="flow-line" stroke={r.color} strokeWidth={w} strokeOpacity={0.55} />
+            <path d={d} className="flow-line" strokeWidth={w} strokeOpacity={0.25 + Math.min(0.6, share * 1.5)} />
             <path d={d} className="flow-pulse" style={{ animationDelay: `${(i * 0.37) % 2.8}s` }} />
           </g>
         );
       })}
       <g>
-        <rect x={sink.x} y={sink.y - 34} width={W - sink.x - 8} height={68} rx={3} fill="#0c0f12" stroke="#5ed1c2" strokeWidth={1.2} />
-        <text x={sink.x + 12} y={sink.y - 12} className="flow-tag" style={{ fill: "#5ed1c2" }}>USDC · NEAR</text>
+        <rect x={sink.x} y={sink.y - 34} width={W - sink.x - 8} height={68} rx={6} className="flow-sink" strokeWidth={1.2} />
+        <text x={sink.x + 12} y={sink.y - 12} className="flow-sink-tag">USDC · NEAR</text>
         <text x={sink.x + 12} y={sink.y + 6} className="flow-amt">{account.length > 22 ? account.slice(0, 21) + "…" : account}</text>
         <text x={sink.x + 12} y={sink.y + 22} className="flow-label">{simulated ? "simulated settlement" : "settled on mainnet"}</text>
       </g>
