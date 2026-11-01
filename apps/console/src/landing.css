@@ -11,14 +11,16 @@
 .l-top-cta { min-height: 36px; padding: 8px 14px; }
 
 /* ── hero ────────────────────────────────────────────────────────────── */
-.l-hero { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); gap: var(--s-7); align-items: center; padding: var(--s-8) 0 var(--s-7); }
+.l-hero { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.12fr); gap: var(--s-7); align-items: center; padding: var(--s-8) 0 var(--s-7); }
 .l-hero h1 { font: 400 var(--fs-hero) / var(--lh-tight) var(--font-serif); letter-spacing: -0.02em; margin: var(--s-5) 0 var(--s-4); text-wrap: balance; }
 .l-hero h1 em { font-style: italic; color: var(--text); }
 .l-sub { font-size: var(--fs-md); color: var(--text-2); max-width: 52ch; margin: 0 0 var(--s-5); }
 .l-actions { display: flex; gap: var(--s-3); flex-wrap: wrap; }
 .l-note { font-size: var(--fs-xs); color: var(--text-3); margin: var(--s-4) 0 0; }
-.l-hero-art { min-width: 0; }
+.l-hero-art { min-width: 0; margin: 0; border: var(--border); border-radius: var(--radius-lg); background: radial-gradient(80% 70% at 60% 55%, var(--accent-wash), transparent 70%), var(--surface-1); padding: var(--s-4) var(--s-4) 0; }
 .l-hero-art svg { width: 100%; height: auto; }
+.l-hero-art figcaption { display: flex; justify-content: space-between; gap: var(--s-3); flex-wrap: wrap; border-top: var(--border); margin: var(--s-3) calc(var(--s-4) * -1) 0; padding: var(--s-3) var(--s-4); font-size: var(--fs-2xs); letter-spacing: 0.04em; text-transform: uppercase; color: var(--text-2); }
+.l-hero-art figcaption i { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); margin-right: var(--s-2); }
 
 /* ── works with ──────────────────────────────────────────────────────── */
 .l-works { display: flex; align-items: center; gap: var(--s-6); border-top: var(--border); border-bottom: var(--border); padding: var(--s-5) 0; flex-wrap: wrap; }
@@ -95,3 +97,34 @@
   .checklist .chip { grid-column: 2; justify-self: start; }
   .l-works ul { gap: var(--s-5); }
 }
+
+/* ── isometric illustrations ─────────────────────────────────────────── */
+.iso-hero { overflow: hidden; }
+.iso-grid path { stroke: var(--line); stroke-width: 0.6; fill: none; }
+.iso-slab polygon { stroke: var(--line-strong); stroke-width: 0.8; stroke-linejoin: round; }
+.iso-top { fill: var(--surface-3); }
+.iso-left { fill: var(--surface-2); }
+.iso-right { fill: var(--surface-1); }
+.iso-dim .iso-top { fill: var(--surface-2); }
+.iso-dim .iso-left, .iso-dim .iso-right { fill: var(--bg); }
+.iso-accent polygon { stroke: var(--accent-line); }
+.iso-accent .iso-top { fill: color-mix(in srgb, var(--accent) 22%, var(--surface-1)); }
+.iso-accent .iso-left { fill: color-mix(in srgb, var(--accent) 12%, var(--surface-1)); }
+.iso-accent .iso-right { fill: color-mix(in srgb, var(--accent) 7%, var(--bg)); }
+.iso-ghost polygon { fill: none; stroke: var(--line-strong); stroke-dasharray: 2 3; }
+.iso-ghost .iso-left, .iso-ghost .iso-right { display: none; }
+.iso-label { font-family: var(--font-mono); fill: var(--text); letter-spacing: 0.02em; }
+.iso-label-muted { fill: var(--text-2); }
+.iso-label-accent { fill: var(--accent); font-weight: 500; }
+.iso-flow { fill: none; stroke: var(--accent); stroke-width: 1.6; stroke-linecap: round; opacity: 0.55; }
+.iso-flow-strong { stroke-width: 3; opacity: 0.9; }
+.iso-flow-blocked { stroke: var(--text-3); stroke-dasharray: 3 4; opacity: 1; }
+.iso-pulse { fill: none; stroke: var(--text); stroke-width: 1.6; stroke-linecap: round; stroke-dasharray: 1.5 22; opacity: 0.75; animation: iso-flow var(--flow-speed) linear infinite; }
+@keyframes iso-flow { to { stroke-dashoffset: -47; } }
+@media (prefers-reduced-motion: reduce) { .iso-pulse { display: none; } }
+.iso-row { stroke: var(--text-3); stroke-width: 1.4; stroke-linecap: round; }
+.iso-row-accent { stroke: var(--accent); }
+.iso-chip rect { fill: var(--surface-2); stroke: var(--line-strong); }
+.iso-chip text { font: 500 8px var(--font-mono); fill: var(--text); }
+.iso-chip-accent rect { fill: var(--accent-wash); stroke: var(--accent-line); }
+.iso-chip-accent text { fill: var(--accent); }

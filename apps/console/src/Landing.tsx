@@ -125,7 +125,10 @@ export function Landing() {
               </div>
               <p className="l-note mono">The demo runs locally with simulated payments: no keys, no funds, no network.</p>
             </div>
-            <div className="l-hero-art"><HeroArt /></div>
+            <figure className="l-hero-art">
+              <HeroArt />
+              <figcaption className="mono"><span><i aria-hidden="true" />6 chains in</span><span>1 gate</span><span>1 account out · USDC on NEAR</span></figcaption>
+            </figure>
           </section>
 
           <section className="l-works" aria-label="Works with">
@@ -157,9 +160,9 @@ export function Landing() {
 
           <Section id="how" eyebrow="How it works" title="Every payment runs the same checklist" intro="An agent calls your endpoint and gets HTTP 402 with every chain you accept. It pays from whatever it holds. You receive USDC on NEAR and the call goes through, but only after these checks pass.">
             <ol className="steps" aria-label="Payment flow">
-              <li><span className="mono">01</span>Agent calls, gets <code className="inline">402</code> listing every accepted chain</li>
-              <li><span className="mono">02</span>Agent pays from what it holds, on its own chain</li>
-              <li><span className="mono">03</span>USDC lands in your NEAR account; the call is forwarded</li>
+              <li><span className="mono">01</span><span>Agent calls, gets <code className="inline">402</code> listing every accepted chain</span></li>
+              <li><span className="mono">02</span><span>Agent pays from what it holds, on its own chain</span></li>
+              <li><span className="mono">03</span><span>USDC lands in your NEAR account; the call is forwarded</span></li>
             </ol>
             <ul className="checklist">
               {CHECKS.map((c) => (
