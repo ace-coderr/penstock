@@ -108,7 +108,7 @@ export function exportUrl(days: number): string {
   return `/api/admin/export.csv?seller=${encodeURIComponent(seller())}&days=${days}`;
 }
 
-export function useApi<T>(path: string | null): { data: T | null; error: ApiError | null; loading: boolean; reload: () => void } {
+export function useApi<T>(path: string | null, pollMs?: number): { data: T | null; error: ApiError | null; loading: boolean; reload: () => void } {
   const [state, setState] = useState<{ data: T | null; error: ApiError | null; loading: boolean }>({ data: null, error: null, loading: true });
   const [tick, setTick] = useState(0);
   useEffect(() => {
@@ -123,5 +123,12 @@ export function useApi<T>(path: string | null): { data: T | null; error: ApiErro
     };
   }, [path, tick]);
   const reload = useCallback(() => setTick((t) => t + 1), []);
+  useEffect(() => {
+    if (!pollMs) return;
+    const id = setInterval(() => {
+      if (!document.hidden) setTick((t) => t + 1);
+    }, pollMs);
+    return () => clearInterval(id);
+  }, [pollMs]);
   return { ...state, reload };
 }

@@ -61,9 +61,6 @@ main.console { padding: var(--s-6) 0 var(--s-8); }
 .flow-wrap { border: var(--border); border-radius: var(--radius-lg); background: var(--surface-1); padding: var(--s-3); min-height: 260px; }
 .flow-wrap svg { width: 100%; height: auto; }
 .flow-line { fill: none; stroke: var(--accent); stroke-linecap: round; }
-.flow-pulse { fill: none; stroke: var(--text); stroke-width: 1.4; stroke-dasharray: 2 26; opacity: 0.5; animation: flow var(--flow-speed) linear infinite; }
-@keyframes flow { to { stroke-dashoffset: -28; } }
-@media (prefers-reduced-motion: reduce) { .flow-pulse { display: none; } }
 .flow-label { font: 400 11px var(--font-mono); fill: var(--text-2); }
 .flow-tag { font: 500 11px var(--font-mono); letter-spacing: 0.06em; fill: var(--text); }
 .flow-amt { font: 400 12px var(--font-mono); fill: var(--text); }

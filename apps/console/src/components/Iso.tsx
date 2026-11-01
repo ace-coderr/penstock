@@ -1,4 +1,8 @@
-import type { ReactNode } from "react";
+import { createContext, useContext, type ReactNode } from "react";
+import { useMotionAllowed } from "../motion";
+
+/** Whether continuous pulses should render (false under prefers-reduced-motion). */
+const PulseCtx = createContext(true);
 
 /**
  * Isometric illustrations, drawn in code. World coordinates (x right-back, y left-back, z up)
@@ -24,16 +28,18 @@ interface SlabProps {
   d: number;
   h: number;
   tone?: "plain" | "accent" | "dim" | "ghost";
+  /** Entrance order; slabs with an index rise in on load. */
+  anim?: number;
   children?: ReactNode;
 }
 
 /** A box: top face plus the two visible side faces. */
-function Slab({ x, y, w, d, h, tone = "plain", children }: SlabProps) {
+function Slab({ x, y, w, d, h, tone = "plain", anim, children }: SlabProps) {
   const top = [iso(x, y, h), iso(x + w, y, h), iso(x + w, y + d, h), iso(x, y + d, h)];
   const left = [iso(x, y + d, h), iso(x + w, y + d, h), iso(x + w, y + d, 0), iso(x, y + d, 0)];
   const right = [iso(x + w, y, h), iso(x + w, y + d, h), iso(x + w, y + d, 0), iso(x + w, y, 0)];
   return (
-    <g className={`iso-slab iso-${tone}`}>
+    <g className={`iso-slab iso-${tone}${anim !== undefined ? " iso-slab-anim" : ""}`} style={anim !== undefined ? ({ "--i": anim } as React.CSSProperties) : undefined}>
       <polygon className="iso-left" points={pts(left)} />
       <polygon className="iso-right" points={pts(right)} />
       <polygon className="iso-top" points={pts(top)} />
@@ -65,23 +71,32 @@ function flowPath(points: [number, number, number][]): string {
   return d;
 }
 
-function Flow({ d, i = 0, strong = false }: { d: string; i?: number; strong?: boolean }) {
+/** A flow line plus a marker that travels along it (animateMotion moves it by transform). */
+function Flow({ d, i = 0, strong = false, delay = 0 }: { d: string; i?: number; strong?: boolean; delay?: number }) {
+  const pulses = useContext(PulseCtx);
   return (
     <g>
       <path d={d} className={strong ? "iso-flow iso-flow-strong" : "iso-flow"} />
-      <path d={d} className="iso-pulse" style={{ animationDelay: `${(i * 0.45) % 3}s` }} />
+      {pulses && (
+        <circle r={strong ? 2.6 : 1.9} className="iso-pulse-dot">
+          <animateMotion dur="3.2s" repeatCount="indefinite" begin={`${(delay + i * 0.45).toFixed(2)}s`} path={d} />
+        </circle>
+      )}
     </g>
   );
 }
 
 function Scene({ box, label, desc, children, className }: { box: [number, number, number, number]; label: string; desc?: string; children: ReactNode; className?: string }) {
   const id = label.replace(/[^a-z]/gi, "").slice(0, 16);
+  const pulses = useMotionAllowed();
   return (
+    <PulseCtx.Provider value={pulses}>
     <svg viewBox={box.join(" ")} role={desc ? "img" : undefined} aria-labelledby={desc ? `${id}-t ${id}-d` : undefined} aria-hidden={desc ? undefined : true} className={className}>
       {desc && <title id={`${id}-t`}>{label}</title>}
       {desc && <desc id={`${id}-d`}>{desc}</desc>}
       {children}
     </svg>
+    </PulseCtx.Provider>
   );
 }
 
@@ -104,32 +119,40 @@ export function HeroArt() {
         {Array.from({ length: 11 }, (_, i) => <path key={`b${i}`} d={`M ${iso(i * 40, -20).join(" ")} L ${iso(i * 40, 320).join(" ")}`} />)}
       </g>
 
-      {SOURCES.map((name, i) => {
-        const y = i * GAP;
-        return (
-          <Flow key={`f${name}`} i={i} d={flowPath([[W, y + D / 2, 2], [gate.x - 18, midY + (i - 2.5) * 5, 2], [gate.x, midY, 2]])} />
-        );
-      })}
-      <Flow strong i={7} d={flowPath([[gate.x + gate.w, midY, 2], [sink.x, midY, 2]])} />
+      <defs>
+        <mask id="hero-flow-mask" maskUnits="userSpaceOnUse" x={-240} y={-26} width={494} height={318}>
+          <rect className="iso-reveal" x={-240} y={-26} width={494} height={318} fill="white" />
+        </mask>
+      </defs>
+      {/* Flow lines are revealed left to right after the slabs land, then pulses travel along them. */}
+      <g mask="url(#hero-flow-mask)">
+        {SOURCES.map((name, i) => {
+          const y = i * GAP;
+          return (
+            <Flow key={`f${name}`} i={i} delay={1.2} d={flowPath([[W, y + D / 2, 2], [gate.x - 18, midY + (i - 2.5) * 5, 2], [gate.x, midY, 2]])} />
+          );
+        })}
+        <Flow strong i={2} delay={1.4} d={flowPath([[gate.x + gate.w, midY, 2], [sink.x, midY, 2]])} />
+      </g>
 
       {SOURCES.map((name, i) => {
         const y = i * GAP;
         return (
-          <Slab key={name} x={0} y={y} w={W} d={D} h={H} tone={i === 4 ? "dim" : "plain"}>
+          <Slab key={name} x={0} y={y} w={W} d={D} h={H} tone={i === 4 ? "dim" : "plain"} anim={i}>
             <TopText x={8} y={y + 19} z={H} size={10}>{name}</TopText>
           </Slab>
         );
       })}
 
       {/* The gate: two posts and a lintel, the accent channel running through it. */}
-      <Slab x={gate.x} y={gate.y} w={gate.w} d={8} h={gate.h} />
-      <Slab x={gate.x} y={gate.y + gate.d - 8} w={gate.w} d={8} h={gate.h} />
-      <Slab x={gate.x} y={gate.y} w={gate.w} d={gate.d} h={8} tone="accent" />
-      <Slab x={gate.x - 2} y={gate.y - 2} w={gate.w + 4} d={gate.d + 4} h={4} tone="dim" />
+      <Slab x={gate.x} y={gate.y} w={gate.w} d={8} h={gate.h} anim={6} />
+      <Slab x={gate.x} y={gate.y + gate.d - 8} w={gate.w} d={8} h={gate.h} anim={6} />
+      <Slab x={gate.x} y={gate.y} w={gate.w} d={gate.d} h={8} tone="accent" anim={6} />
+      <Slab x={gate.x - 2} y={gate.y - 2} w={gate.w + 4} d={gate.d + 4} h={4} tone="dim" anim={6} />
       <TopText x={gate.x + 2} y={gate.y + 30} z={gate.h + 3} size={8} className="iso-label iso-label-muted">x402</TopText>
       <Slab x={gate.x} y={gate.y} w={gate.w} d={gate.d} h={gate.h} tone="ghost" />
 
-      <Slab {...sink} tone="accent">
+      <Slab {...sink} tone="accent" anim={7}>
         <TopText x={sink.x + 12} y={sink.y + 30} z={sink.h} size={15} className="iso-label iso-label-accent">USDC · NEAR</TopText>
         <TopText x={sink.x + 12} y={sink.y + 50} z={sink.h} size={9} className="iso-label iso-label-muted">one account</TopText>
       </Slab>

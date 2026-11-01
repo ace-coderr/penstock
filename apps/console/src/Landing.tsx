@@ -2,6 +2,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { Wordmark } from "./components/Wordmark";
 import { CardArt, HeroArt } from "./components/Iso";
 import { units } from "./format";
+import { useCountUp, useReveal } from "./motion";
 
 const REPO = "https://github.com/ace-coderr/penstock";
 
@@ -45,8 +46,9 @@ const CHECKS: { title: string; body: string; code: string }[] = [
 ];
 
 function Section({ id, eyebrow, title, intro, children }: { id?: string; eyebrow: string; title: ReactNode; intro?: ReactNode; children: ReactNode }) {
+  const [ref, seen] = useReveal<HTMLElement>();
   return (
-    <section className="l-sec" id={id} aria-labelledby={id ? `${id}-h` : undefined}>
+    <section ref={ref} className={`l-sec reveal${seen ? " is-in" : ""}`} id={id} aria-labelledby={id ? `${id}-h` : undefined}>
       <div className="l-sec-head">
         <span className="eyebrow"><i aria-hidden="true" />{eyebrow}</span>
         <h2 id={id ? `${id}-h` : undefined}>{title}</h2>
@@ -57,11 +59,17 @@ function Section({ id, eyebrow, title, intro, children }: { id?: string; eyebrow
   );
 }
 
+function CountUp({ value, format, start }: { value: number; format: (n: number) => string; start: boolean }) {
+  const n = useCountUp(value, { fromZero: true, start });
+  return <>{format(n)}</>;
+}
+
 function Proof() {
   const { stats, state } = useStats();
+  const [ref, seen] = useReveal<HTMLDivElement>();
   if (state === "loading") {
     return (
-      <div className="proof" aria-busy="true">
+      <div className="proof" aria-busy="true" ref={ref}>
         {[0, 1, 2].map((i) => <div className="proof-item" key={i}><div className="skeleton" style={{ height: 48, width: "60%" }} /><div className="skeleton" style={{ width: "80%" }} /></div>)}
       </div>
     );
@@ -74,17 +82,17 @@ function Proof() {
       </div>
     );
   }
-  const usd = units(stats.receivedUsdc, 6, 2);
+  const usd = Number(units(stats.receivedUsdc, 6, 2));
   const items = [
-    { n: stats.payments.toLocaleString("en-US"), l: `payments in ${stats.days} days` },
-    { n: String(stats.chains), l: "chains paid from, one account receiving" },
-    { n: `$${Number(usd).toFixed(2)}`, l: "USDC received on NEAR" },
+    { v: stats.payments, f: (n: number) => Math.round(n).toLocaleString("en-US"), l: `payments in ${stats.days} days` },
+    { v: stats.chains, f: (n: number) => String(Math.round(n)), l: "chains paid from, one account receiving" },
+    { v: usd, f: (n: number) => `$${n.toFixed(2)}`, l: "USDC received on NEAR" },
   ];
   return (
-    <div className="proof">
-      {items.map((x) => (
-        <div className="proof-item" key={x.l}>
-          <div className="proof-n">{x.n}</div>
+    <div className="proof" ref={ref}>
+      {items.map((x, i) => (
+        <div className={`proof-item reveal${seen ? " is-in" : ""}`} key={x.l} style={{ "--i": i } as React.CSSProperties}>
+          <div className="proof-n" aria-label={x.f(x.v)}><CountUp value={x.v} format={x.f} start={seen} /></div>
           <div className="proof-l">{x.l}</div>
           <span className="sim-inline">simulated demo data</span>
         </div>
@@ -116,16 +124,16 @@ export function Landing() {
         <div className="frame">
           <section className="l-hero" aria-labelledby="hero-h">
             <div className="l-hero-copy">
-              <span className="eyebrow"><i aria-hidden="true" />x402 · NEAR Intents · USDC on NEAR</span>
-              <h1 id="hero-h">Let any agent pay you, <em>from any chain.</em></h1>
-              <p className="l-sub">Penstock puts an x402 paywall in front of any API or MCP tool. Agents pay with any token; you receive USDC on NEAR, with books that close.</p>
-              <div className="l-actions">
+              <span className="eyebrow rise" style={{ "--i": 0 } as React.CSSProperties}><i aria-hidden="true" />x402 · NEAR Intents · USDC on NEAR</span>
+              <h1 id="hero-h" className="rise" style={{ "--i": 1 } as React.CSSProperties}>Let any agent pay you, <em>from any chain.</em></h1>
+              <p className="l-sub rise" style={{ "--i": 2 } as React.CSSProperties}>Penstock puts an x402 paywall in front of any API or MCP tool. Agents pay with any token; you receive USDC on NEAR, with books that close.</p>
+              <div className="l-actions rise" style={{ "--i": 3 } as React.CSSProperties}>
                 <a className="btn btn-primary" href="/app">Open the demo console</a>
                 <a className="btn btn-ghost" href="#how">How it works</a>
               </div>
-              <p className="l-note mono">The demo runs locally with simulated payments: no keys, no funds, no network.</p>
+              <p className="l-note mono rise" style={{ "--i": 4 } as React.CSSProperties}>The demo runs locally with simulated payments: no keys, no funds, no network.</p>
             </div>
-            <figure className="l-hero-art">
+            <figure className="l-hero-art rise" style={{ "--i": 2 } as React.CSSProperties}>
               <HeroArt />
               <figcaption className="mono"><span><i aria-hidden="true" />6 chains in</span><span>1 gate</span><span>1 account out · USDC on NEAR</span></figcaption>
             </figure>
@@ -143,7 +151,7 @@ export function Landing() {
           <Section id="instruments" eyebrow="Instruments" title="Four instruments. One console." intro="Each one is a tab in the seller console, and each one is working in the demo right now.">
             <div className="cards">
               {INSTRUMENTS.map((c, i) => (
-                <article className="card" key={c.id}>
+                <article className="card" key={c.id} style={{ "--i": i } as React.CSSProperties}>
                   <div className="card-art" aria-hidden="true"><CardArt kind={c.id} /></div>
                   <span className="card-n mono">0{i + 1}</span>
                   <h3>{c.title}</h3>

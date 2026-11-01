@@ -85,7 +85,37 @@
   --gutter: clamp(16px, 3vw, 32px);
   --focus: 0 0 0 2px var(--bg), 0 0 0 4px var(--accent);
 
-  /* motion */
-  --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
-  --flow-speed: 3.2s;
+  /*
+   * motion. One-shot animations stay at or under 600ms; only ambient loops (flow pulses,
+   * the live dot, skeleton shimmer) run longer. Everything animates transform or opacity.
+   */
+  --dur-instant: 90ms;
+  --dur-fast: 150ms;
+  --dur-base: 240ms;
+  --dur-slow: 420ms;
+  --dur-reveal: 560ms;
+  --dur-count: 600ms;
+  --stagger: 70ms;
+  --rise: 14px;
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --ease-press: cubic-bezier(0.3, 0, 0.2, 1);
+  --ease: var(--ease-out);
+  --loop-flow: 3.2s;
+  --loop-ping: 2.4s;
+  --loop-shimmer: 1.3s;
+}
+
+/* Reduced motion: every duration and offset collapses to zero (base.css also stops any animation). */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --dur-instant: 0ms;
+    --dur-fast: 0ms;
+    --dur-base: 0ms;
+    --dur-slow: 0ms;
+    --dur-reveal: 0ms;
+    --dur-count: 0ms;
+    --stagger: 0ms;
+    --rise: 0px;
+  }
 }

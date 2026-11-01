@@ -36,7 +36,8 @@ button, input, select { font: inherit; color: inherit; }
 .chip-accent { color: var(--accent); border-color: var(--accent-line); background: var(--accent-wash); }
 
 /* Buttons: one primary per screen, in the accent. */
-.btn { display: inline-flex; align-items: center; justify-content: center; gap: var(--s-2); min-height: 40px; padding: 9px 16px; border-radius: var(--radius); border: var(--border-strong); background: var(--surface-2); color: var(--text); font: 500 var(--fs-sm) / 1 var(--font-sans); text-decoration: none; cursor: pointer; transition: border-color 0.15s var(--ease), background 0.15s var(--ease); }
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: var(--s-2); min-height: 40px; padding: 9px 16px; border-radius: var(--radius); border: var(--border-strong); background: var(--surface-2); color: var(--text); font: 500 var(--fs-sm) / 1 var(--font-sans); text-decoration: none; cursor: pointer; transition: border-color var(--dur-fast) var(--ease-out), background-color var(--dur-fast) var(--ease-out), transform var(--dur-instant) var(--ease-press); }
+.btn:active { transform: scale(0.97); }
 .btn:hover { border-color: var(--line-input); color: var(--text); }
 .btn-primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 600; }
 .btn-primary:hover { background: var(--accent-hover); border-color: var(--accent-hover); color: var(--accent-ink); }
@@ -54,8 +55,8 @@ button, input, select { font: inherit; color: inherit; }
 .state p { margin: 0 auto var(--s-4); max-width: 56ch; }
 .state code, code.inline { font-family: var(--font-mono); font-size: 0.92em; color: var(--text); background: var(--surface-3); padding: 2px 6px; border-radius: var(--radius-sm); }
 .state-error { border-style: solid; border-color: var(--bad-line); }
-.skeleton { height: 14px; background: linear-gradient(90deg, var(--surface-2), var(--surface-3), var(--surface-2)); background-size: 200% 100%; animation: sk 1.4s infinite linear; border-radius: var(--radius-sm); margin: 12px 0; }
-@keyframes sk { to { background-position: -200% 0; } }
+.skeleton { height: 14px; background: var(--surface-2); border-radius: var(--radius-sm); margin: 12px 0; position: relative; overflow: hidden; }
+.skeleton::after { content: ""; position: absolute; inset: 0; background: linear-gradient(90deg, transparent, var(--surface-3), transparent); transform: translateX(-100%); animation: shimmer var(--loop-shimmer) linear infinite; }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.001ms !important; animation-iteration-count: 1 !important; transition: none !important; }

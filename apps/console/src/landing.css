@@ -119,9 +119,6 @@
 .iso-flow { fill: none; stroke: var(--accent); stroke-width: 1.6; stroke-linecap: round; opacity: 0.55; }
 .iso-flow-strong { stroke-width: 3; opacity: 0.9; }
 .iso-flow-blocked { stroke: var(--text-3); stroke-dasharray: 3 4; opacity: 1; }
-.iso-pulse { fill: none; stroke: var(--text); stroke-width: 1.6; stroke-linecap: round; stroke-dasharray: 1.5 22; opacity: 0.75; animation: iso-flow var(--flow-speed) linear infinite; }
-@keyframes iso-flow { to { stroke-dashoffset: -47; } }
-@media (prefers-reduced-motion: reduce) { .iso-pulse { display: none; } }
 .iso-row { stroke: var(--text-3); stroke-width: 1.4; stroke-linecap: round; }
 .iso-row-accent { stroke: var(--accent); }
 .iso-chip rect { fill: var(--surface-2); stroke: var(--line-strong); }

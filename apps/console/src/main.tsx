@@ -12,6 +12,7 @@ import "./tokens.css";
 import "./base.css";
 import "./styles.css";
 import "./landing.css";
+import "./motion.css";
 import { Console } from "./Console";
 import { Landing } from "./Landing";
 

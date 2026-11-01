@@ -1,5 +1,6 @@
 import type { ChainRow } from "../api";
 import { usdc } from "../format";
+import { useMotionAllowed } from "../motion";
 
 /**
  * Inflow diagram: one line per origin chain, its weight proportional to USDC delivered,
@@ -7,6 +8,7 @@ import { usdc } from "../format";
  * (disabled under prefers-reduced-motion).
  */
 export function Flow({ rows, account, simulated }: { rows: ChainRow[]; account: string; simulated: boolean }) {
+  const pulses = useMotionAllowed();
   const W = 720;
   const rowH = 34;
   const H = Math.max(220, rows.length * rowH + 40);
@@ -31,7 +33,11 @@ export function Flow({ rows, account, simulated }: { rows: ChainRow[]; account: 
             <text x={20} y={y + 12} className="flow-label">{r.count} pay{r.refunded ? ` · ${r.refunded} ref` : ""}</text>
             <text x={startX - 10} y={y + 4} className="flow-amt" textAnchor="end">{usdc(r.receivedUsdc, 2)}</text>
             <path d={d} className="flow-line" strokeWidth={w} strokeOpacity={0.25 + Math.min(0.6, share * 1.5)} />
-            <path d={d} className="flow-pulse" style={{ animationDelay: `${(i * 0.37) % 2.8}s` }} />
+            {pulses && (
+              <circle r={Math.max(1.6, Math.min(3, w / 4))} className="flow-pulse-dot">
+                <animateMotion dur="3.2s" repeatCount="indefinite" begin={`${((i * 0.37) % 2.8).toFixed(2)}s`} path={d} />
+              </circle>
+            )}
           </g>
         );
       })}
@@ -53,10 +59,10 @@ export function Bars({ daily }: { daily: { day: string; receivedUsdc: string; co
         {daily.map((d) => (
           <div
             key={d.day}
+            style={{ "--i": daily.indexOf(d), height: `${(Number(d.receivedUsdc) / max) * 100}%` } as React.CSSProperties}
             role="listitem"
             tabIndex={0}
             className="bar"
-            style={{ height: `${(Number(d.receivedUsdc) / max) * 100}%` }}
             title={`${d.day}: ${usdc(d.receivedUsdc)} from ${d.count} payments`}
             aria-label={`${d.day}: ${usdc(d.receivedUsdc)} from ${d.count} payments`}
           />

@@ -1,5 +1,6 @@
-import { useEffect, useState } from "react";
-import { adminToken, setAdminToken, useApi, type Overview } from "./api";
+import { useEffect, useRef, useState } from "react";
+import { adminToken, setAdminToken, useApi, type Overview, type Payment } from "./api";
+import { CHAIN_META, usdc } from "./format";
 import { ErrorState, Loading } from "./components/bits";
 import { Wordmark } from "./components/Wordmark";
 import { Endpoints } from "./pages/Endpoints";
@@ -39,10 +40,44 @@ function TokenField() {
   );
 }
 
+interface Toast {
+  id: string;
+  text: string;
+  detail: string;
+}
+
+/** Shows a short notice when a new payment lands (in the demo: a simulated agent paying). */
+function useArrivalToasts(): Toast[] {
+  const latest = useApi<{ payments: Payment[] }>("/payments?limit=1", 4000);
+  const [toasts, setToasts] = useState<Toast[]>([]);
+  const lastId = useRef<string | null>(null);
+  const p = latest.data?.payments[0];
+  useEffect(() => {
+    if (!p) return;
+    if (lastId.current === null) {
+      lastId.current = p.id;
+      return;
+    }
+    if (p.id === lastId.current) return;
+    lastId.current = p.id;
+    const chain = CHAIN_META[p.originChain]?.label ?? p.originChain;
+    const t: Toast = {
+      id: p.id,
+      text: `${p.simulated ? "Simulated agent paid" : "Payment received"}: ${usdc(p.amountOut)}`,
+      detail: `${p.endpointId.split(".")[1]} · from ${p.originSymbol} on ${chain}${p.sessionId ? " · session" : ""}`,
+    };
+    setToasts((xs) => [...xs.slice(-2), t]);
+    // Each toast owns its timer; a newer arrival must not cancel an older toast's dismissal.
+    setTimeout(() => setToasts((xs) => xs.filter((x) => x.id !== t.id)), 4500);
+  }, [p]);
+  return toasts;
+}
+
 export function Console() {
   const route = useRoute();
   const days = 30;
-  const o = useApi<Overview>(`/overview?days=${days}`);
+  const o = useApi<Overview>(`/overview?days=${days}`, 5000);
+  const toasts = useArrivalToasts();
   const ov = o.data;
   const current = ROUTES.find((r) => r.path === route) ?? ROUTES[0];
   useEffect(() => {
@@ -88,14 +123,24 @@ export function Console() {
           {ov && ov.account.exists === false && (
             <div className="banner banner-bad" role="alert"><strong>Payout account problem.</strong> {ov.account.message} Quotes are refused until this is fixed.</div>
           )}
-          {o.loading && !ov ? <Loading lines={8} /> : o.error ? <ErrorState error={o.error} onRetry={o.reload} /> : ov && (
-            route === "payments" ? <Payments days={days} /> :
-            route === "funnel" ? <Funnel days={days} /> :
-            route === "sessions" ? <Sessions live={ov.mode === "live"} /> :
-            route === "endpoints" ? <Endpoints account={ov.account} /> :
-            <Ledger overview={ov} />
+          {o.loading && !ov ? <Loading lines={8} /> : o.error && !ov ? <ErrorState error={o.error} onRetry={o.reload} /> : ov && (
+            <div className="view" key={current.path}>
+              {route === "payments" ? <Payments days={days} /> :
+                route === "funnel" ? <Funnel days={days} /> :
+                route === "sessions" ? <Sessions live={ov.mode === "live"} /> :
+                route === "endpoints" ? <Endpoints account={ov.account} /> :
+                <Ledger overview={ov} />}
+            </div>
           )}
         </main>
+      </div>
+      <div className="toasts" role="status" aria-live="polite">
+        {toasts.map((t) => (
+          <div className="toast" key={t.id}>
+            <span className="dot dot-ok dot-live" aria-hidden="true" />
+            <div><strong>{t.text}</strong><span className="faint">{t.detail}</span></div>
+          </div>
+        ))}
       </div>
     </>
   );

@@ -2,6 +2,7 @@ import { useState } from "react";
 import { exportUrl, useApi, type Payment, type Receipt } from "../api";
 import { Chain, Drawer, Empty, ErrorState, Loading, PageHead, Section, Sim, Status } from "../components/bits";
 import { CHAIN_META, explorerFor, isSimHash, originAmount, short, usd, usdc, when } from "../format";
+import { useNewIds } from "../motion";
 
 const PAGE = 25;
 
@@ -80,7 +81,8 @@ export function Payments({ days }: { days: number }) {
   const [page, setPage] = useState(0);
   const [open, setOpen] = useState<string | null>(null);
   const q = `/payments?limit=${PAGE}&offset=${page * PAGE}${status ? `&status=${status}` : ""}${chain ? `&chain=${chain}` : ""}`;
-  const r = useApi<{ total: number; payments: Payment[] }>(q);
+  const r = useApi<{ total: number; payments: Payment[] }>(q, page === 0 ? 4000 : undefined);
+  const fresh = useNewIds(r.data?.payments.map((p) => p.id));
   const pages = r.data ? Math.max(1, Math.ceil(r.data.total / PAGE)) : 1;
   return (
     <>
@@ -120,7 +122,7 @@ export function Payments({ days }: { days: number }) {
               </thead>
               <tbody>
                 {r.data!.payments.map((p) => (
-                  <tr key={p.id}>
+                  <tr key={p.id} className={fresh.has(p.id) ? "row-new" : undefined}>
                     <td><button className="row-btn" onClick={() => setOpen(p.id)} aria-label={`Open receipt ${p.id}`}>{p.id.slice(0, 12)}</button></td>
                     <td className="mono muted">{when(p.ts)}</td>
                     <td className="mono">{p.endpointId.split(".")[1]}{p.sessionId && <span className="faint"> · session</span>}</td>

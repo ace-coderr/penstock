@@ -13,7 +13,7 @@ function Stages({ stages }: { stages: Stage[] }) {
         return (
           <div className="stage" key={s.stage}>
             <div className="stage-name">{LABEL[s.stage] ?? s.stage}</div>
-            <div className="stage-track" aria-hidden="true"><div className="stage-fill" style={{ width: `${(s.count / top) * 100}%` }} /></div>
+            <div className="stage-track" aria-hidden="true"><div className="stage-fill" style={{ width: `${(s.count / top) * 100}%`, "--i": i } as React.CSSProperties} /></div>
             <div className="stage-num">{s.count} <span>{i === 0 ? "buyers' visits" : `${prev ? Math.round((s.count / prev) * 100) : 0}% of previous`}</span></div>
           </div>
         );
@@ -63,7 +63,7 @@ export function Funnel({ days }: { days: number }) {
               <div className="mini" key={e.endpoint}>
                 <h3>{e.endpoint.split(".")[1]}</h3>
                 <div className="mini-bars" aria-label={e.stages.map((s) => `${s.stage} ${s.count}`).join(", ")}>
-                  {e.stages.map((s) => <div key={s.stage} style={{ height: `${(s.count / top) * 100}%` }} title={`${s.stage}: ${s.count}`} />)}
+                  {e.stages.map((s, j) => <div key={s.stage} style={{ height: `${(s.count / top) * 100}%`, "--i": j } as React.CSSProperties} title={`${s.stage}: ${s.count}`} />)}
                 </div>
                 <div className="mono muted" style={{ fontSize: 12, marginTop: 6 }}>{e.stages.map((s) => s.count).join(" → ")}</div>
               </div>

@@ -2,10 +2,13 @@ import { useApi, type Overview, type Payment } from "../api";
 import { Bars, Flow } from "../components/Flow";
 import { Chain, Empty, ErrorState, Loading, PageHead, Section, Sim, Status } from "../components/bits";
 import { ago, originAmount, pct, usd, usdc } from "../format";
+import { useCountUp, useNewIds } from "../motion";
 
 export function Ledger({ overview }: { overview: Overview }) {
   const o = overview;
-  const latest = useApi<{ payments: Payment[] }>("/payments?limit=8");
+  const latest = useApi<{ payments: Payment[] }>("/payments?limit=8", 4000);
+  const fresh = useNewIds(latest.data?.payments.map((p) => p.id));
+  const received = useCountUp(Number(o.receivedUsdc));
   const simulated = o.simulation.settlement;
   return (
     <>
@@ -16,7 +19,7 @@ export function Ledger({ overview }: { overview: Overview }) {
         <div className="hero">
           <div className="panel">
             <div className="total-label">Received into your account</div>
-            <div className="total num">{usdc(o.receivedUsdc, 2)}<small>USDC</small></div>
+            <div className="total num" aria-live="polite" aria-label={`${usdc(o.receivedUsdc, 2)} USDC`}>{usdc(BigInt(Math.round(received)), 2)}<small>USDC</small></div>
             <div className="into">→ {o.seller.nearAccount}</div>
             <dl className="facts">
               <dt>Revenue recognised</dt><dd>{usdc(o.revenueUsdc)}</dd>
@@ -54,7 +57,7 @@ export function Ledger({ overview }: { overview: Overview }) {
               <thead><tr><th>When</th><th>Endpoint</th><th>Paid with</th><th className="r">Received</th><th>Status</th></tr></thead>
               <tbody>
                 {latest.data!.payments.map((p) => (
-                  <tr key={p.id}>
+                  <tr key={p.id} className={fresh.has(p.id) ? "row-new" : undefined}>
                     <td className="mono muted">{ago(p.ts)}</td>
                     <td className="mono">{p.endpointId.split(".")[1]}</td>
                     <td><Chain chain={p.originChain} /> <span className="mono muted">{originAmount(p.originChain, p.originSymbol, p.amountIn)}</span></td>
