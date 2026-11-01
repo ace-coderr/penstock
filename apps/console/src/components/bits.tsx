@@ -15,6 +15,19 @@ export function Section({ idx, title, aside, children }: { idx: string; title: s
   );
 }
 
+export function PageHead({ eyebrow, title, children, aside }: { eyebrow: string; title: string; children?: ReactNode; aside?: ReactNode }) {
+  return (
+    <div className="page-h">
+      <div>
+        <span className="eyebrow"><i aria-hidden="true" />{eyebrow}</span>
+        <h1>{title}</h1>
+        {children && <p>{children}</p>}
+      </div>
+      {aside && <div className="aside">{aside}</div>}
+    </div>
+  );
+}
+
 export function Chain({ chain }: { chain: string }) {
   const m = CHAIN_META[chain] ?? { label: chain, tag: chain.slice(0, 3).toUpperCase() };
   return (

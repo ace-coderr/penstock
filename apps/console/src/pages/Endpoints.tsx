@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from "react";
 import { api, ApiError, useApi, type AccountCheck, type EndpointRow, type Shielded } from "../api";
-import { Empty, ErrorState, Loading, Section } from "../components/bits";
+import { Empty, ErrorState, Loading, PageHead, Section } from "../components/bits";
 import { usdc } from "../format";
 
 function Protect({ onDone }: { onDone: () => void }) {
@@ -36,7 +36,7 @@ function Protect({ onDone }: { onDone: () => void }) {
         <div className="field"><label htmlFor="p-caps">Capabilities</label><input id="p-caps" name="caps" placeholder="fx, rates" /></div>
         <div className="field"><button className="btn btn-primary" disabled={busy}>{busy ? "Saving…" : "Protect endpoint"}</button></div>
       </div>
-      {msg && <p className={msg.ok ? "msg-ok" : "msg-bad"} role="status">{msg.text}</p>}
+      {msg && <p className={`msg ${msg.ok ? "msg-ok" : "msg-bad"}`} role="status">{msg.text}</p>}
     </form>
   );
 }
@@ -63,9 +63,11 @@ function AccountPanel({ initial }: { initial: AccountCheck }) {
         <div className="field" style={{ flex: "1 1 260px" }}><label htmlFor="acc">NEAR account</label><input id="acc" name="account" defaultValue={initial.account} /></div>
         <button className="btn" disabled={busy}>{busy ? "Checking…" : "Check"}</button>
       </div>
-      <p role="status" className={res.exists === false ? "msg-bad" : res.exists ? "msg-ok" : "muted"}>
-        {res.exists === false ? "✗ " : res.exists ? "✓ " : "… "}{res.message} <span className="faint">({res.method})</span>
-      </p>
+      <div role="status" className={`account-result ${res.exists === false ? "is-bad" : res.exists ? "is-ok" : ""}`}>
+        <span className="account-name mono">{res.account}</span>
+        <span className={`st ${res.exists === false ? "st-failed" : res.exists ? "st-settled" : "st-pending"}`}>{res.exists === false ? "not found" : res.exists ? "exists" : "unverified"}</span>
+        <p>{res.message} <span className="faint">({res.method} check)</span></p>
+      </div>
     </form>
   );
 }
@@ -86,7 +88,7 @@ function ShieldedPanel() {
               <tr key={x.id}>
                 <td className="mono">{x.label}</td>
                 <td><span className={`st ${x.enabled ? "st-settled" : "st-pending"}`}>{x.enabled ? "enabled" : "not enabled"}</span></td>
-                <td style={{ whiteSpace: "normal" }}>{x.reason}</td>
+                <td className="wrap">{x.reason}</td>
               </tr>
             ))}
           </tbody>
@@ -106,6 +108,9 @@ export function Endpoints({ account }: { account: AccountCheck }) {
   const r = useApi<{ endpoints: EndpointRow[] }>("/endpoints");
   return (
     <>
+      <PageHead eyebrow="05 · Endpoints" title="What you sell, and where it pays out">
+        Each endpoint is an upstream you protect, a price per call, and the NEAR account that receives the USDC.
+      </PageHead>
       <Section idx="01" title="Protected endpoints">
         {r.loading && !r.data ? <Loading /> : r.error ? <ErrorState error={r.error} onRetry={r.reload} /> : !r.data!.endpoints.length ? (
           <Empty title="Nothing protected yet">Add your first endpoint below.</Empty>
@@ -130,9 +135,11 @@ export function Endpoints({ account }: { account: AccountCheck }) {
           </div>
         )}
       </Section>
-      <Section idx="02" title="Protect an endpoint"><Protect onDone={r.reload} /></Section>
-      <Section idx="03" title="Payout account check"><AccountPanel initial={account} /></Section>
-      <Section idx="04" title="Shielded payer routes"><ShieldedPanel /></Section>
+      <Section idx="02" title="Protect an endpoint"><div className="panel"><Protect onDone={r.reload} /></div></Section>
+      <div className="grid-2 sec-pair">
+        <Section idx="03" title="Payout account check"><div className="panel"><AccountPanel initial={account} /></div></Section>
+        <Section idx="04" title="Shielded payer routes"><div className="panel"><ShieldedPanel /></div></Section>
+      </div>
     </>
   );
 }

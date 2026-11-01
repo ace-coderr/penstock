@@ -1,6 +1,6 @@
 import { useApi, type Overview, type Payment } from "../api";
 import { Bars, Flow } from "../components/Flow";
-import { Chain, Empty, ErrorState, Loading, Section, Sim, Status } from "../components/bits";
+import { Chain, Empty, ErrorState, Loading, PageHead, Section, Sim, Status } from "../components/bits";
 import { ago, originAmount, pct, usd, usdc } from "../format";
 
 export function Ledger({ overview }: { overview: Overview }) {
@@ -9,9 +9,12 @@ export function Ledger({ overview }: { overview: Overview }) {
   const simulated = o.simulation.settlement;
   return (
     <>
-      <Section idx="01" title="Inflow, last 30 days" aside={<Sim on={simulated}>All figures simulated</Sim>}>
+      <PageHead eyebrow="01 · Ledger" title="What came in, and from where" aside={<Sim on={simulated}>All figures simulated</Sim>}>
+        Every payment below arrived as USDC in one NEAR account, whatever chain or token the agent paid with.
+      </PageHead>
+      <Section idx="01" title="Inflow, last 30 days">
         <div className="hero">
-          <div>
+          <div className="panel">
             <div className="total-label">Received into your account</div>
             <div className="total num">{usdc(o.receivedUsdc, 2)}<small>USDC</small></div>
             <div className="into">→ {o.seller.nearAccount}</div>

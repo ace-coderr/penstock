@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { exportUrl, useApi, type Payment, type Receipt } from "../api";
-import { Chain, Drawer, Empty, ErrorState, Loading, Section, Sim, Status } from "../components/bits";
+import { Chain, Drawer, Empty, ErrorState, Loading, PageHead, Section, Sim, Status } from "../components/bits";
 import { CHAIN_META, explorerFor, isSimHash, originAmount, short, usd, usdc, when } from "../format";
 
 const PAGE = 25;
@@ -24,6 +24,13 @@ function ReceiptView({ id, onClose }: { id: string; onClose: () => void }) {
         const { payment: p, receipt, receiptValid, upstreamReceipts = [] } = r.data!;
         return (
           <>
+            <div className="receipt-head">
+              <div>
+                <div className="total-label">{p.status === "settled" ? "You received" : p.status === "refunded" ? "Refunded to the payer" : "Payment"}</div>
+                <div className="receipt-amount">{p.status === "settled" ? usdc(p.amountOut, 6) : originAmount(p.originChain, p.originSymbol, p.refundedAmount ?? p.amountIn)}<small>{p.status === "settled" ? "USDC" : ""}</small></div>
+              </div>
+              <Status value={p.status} />
+            </div>
             {p.simulated && <div className="banner"><span className="sim">Simulated</span> This payment was simulated. No funds moved and the hashes are not on any chain.</div>}
             <dl className="kv">
               <dt>Status</dt><dd><Status value={p.status} /></dd>
@@ -76,13 +83,19 @@ export function Payments({ days }: { days: number }) {
   const r = useApi<{ total: number; payments: Payment[] }>(q);
   const pages = r.data ? Math.max(1, Math.ceil(r.data.total / PAGE)) : 1;
   return (
-    <Section idx="01" title="Payments" aside={r.data ? <span className="mono">{r.data.total} entries</span> : null}>
+    <>
+    <PageHead eyebrow="02 · Payments" title="Every payment, receipt and refund" aside={<a className="btn btn-primary" href={exportUrl(days)} download>Export CSV ({days} days)</a>}>
+      Open any row for its signed receipt. Refunds are returned by the route to the payer's own address.
+    </PageHead>
+    <Section idx="01" title="Ledger entries" aside={r.data ? <span className="mono">{r.data.total} entries</span> : null}>
       <div className="toolbar">
         <div className="field">
-          <label htmlFor="f-status">Status</label>
-          <select id="f-status" value={status} onChange={(e) => { setStatus(e.target.value); setPage(0); }}>
-            <option value="">All</option><option value="settled">Settled</option><option value="refunded">Refunded</option><option value="pending">Pending</option><option value="failed">Failed</option>
-          </select>
+          <span className="lbl" id="f-status-l">Status</span>
+          <div className="seg" role="group" aria-labelledby="f-status-l">
+            {[["", "All"], ["settled", "Settled"], ["refunded", "Refunds"], ["pending", "Pending"]].map(([v, l]) => (
+              <button key={v} type="button" aria-pressed={status === v} onClick={() => { setStatus(v!); setPage(0); }}>{l}</button>
+            ))}
+          </div>
         </div>
         <div className="field">
           <label htmlFor="f-chain">Paid from</label>
@@ -91,11 +104,13 @@ export function Payments({ days }: { days: number }) {
             {Object.entries(CHAIN_META).map(([k, m]) => <option key={k} value={k}>{m.label}</option>)}
           </select>
         </div>
-        <span className="spacer" />
-        <a className="btn btn-primary" href={exportUrl(days)} download>Export CSV ({days} days)</a>
       </div>
       {r.loading && !r.data ? <Loading lines={8} /> : r.error ? <ErrorState error={r.error} onRetry={r.reload} /> : !r.data!.payments.length ? (
-        <Empty title="Nothing matches">No payments for these filters. Clear them, or make one with <code>pnpm selftest</code>.</Empty>
+        status === "refunded" ? (
+          <Empty title="No refunds">No payment was refunded in this period{chain ? " from this chain" : ""}. When a route fails or a deposit is short, 1Click returns the funds to the payer and the refund shows up here.</Empty>
+        ) : (
+          <Empty title="Nothing matches">No payments for these filters. Clear them, or make one with <code>pnpm selftest http://localhost:4020/p/tidewater/tides</code>.</Empty>
+        )
       ) : (
         <>
           <div className="table-wrap">
@@ -128,5 +143,6 @@ export function Payments({ days }: { days: number }) {
       )}
       {open && <ReceiptView id={open} onClose={() => setOpen(null)} />}
     </Section>
+    </>
   );
 }

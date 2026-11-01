@@ -1,5 +1,5 @@
 import { useApi, type Funnel as F, type Stage } from "../api";
-import { Chain, Empty, ErrorState, Loading, Section } from "../components/bits";
+import { Chain, Empty, ErrorState, Loading, PageHead, Section } from "../components/bits";
 import { ago } from "../format";
 
 const LABEL: Record<string, string> = { probed: "Probed (got 402)", quoted: "Asked for a quote", deposited: "Deposited", paid: "Paid" };
@@ -24,12 +24,18 @@ function Stages({ stages }: { stages: Stage[] }) {
 
 export function Funnel({ days }: { days: number }) {
   const r = useApi<F>(`/funnel?days=${days}`);
-  if (r.loading && !r.data) return <Loading lines={6} />;
-  if (r.error) return <ErrorState error={r.error} onRetry={r.reload} />;
+  const head = (
+    <PageHead eyebrow="03 · Funnel" title="Who probed, who paid, where they stopped">
+      Every unpaid call is a probe. Reasons for stopping are inferred from what buyers did next, never stated by them.
+    </PageHead>
+  );
+  if (r.loading && !r.data) return <>{head}<Loading lines={6} /></>;
+  if (r.error) return <>{head}<ErrorState error={r.error} onRetry={r.reload} /></>;
   const f = r.data!;
-  if (!f.stages[0]?.count) return <Empty title="No probes yet">When an agent calls a paid endpoint without paying, it shows up here as a probe.</Empty>;
+  if (!f.stages[0]?.count) return <>{head}<Empty title="No probes yet">When an agent calls a paid endpoint without paying, it shows up here as a probe.</Empty></>;
   return (
     <>
+      {head}
       <Section idx="01" title="Probe to purchase" aside={<span className="mono">{f.buyers} distinct buyers · {days} days</span>}>
         <p className="lede">Every unpaid call is a probe. This is how far buyers got before paying or leaving.</p>
         <Stages stages={f.stages} />

@@ -1,15 +1,22 @@
 import { useApi, type Session } from "../api";
-import { Chain, Empty, ErrorState, Loading, Section, Sim, Status } from "../components/bits";
+import { Chain, Empty, ErrorState, Loading, PageHead, Section, Sim, Status } from "../components/bits";
 import { ago, short, usdc } from "../format";
 
 export function Sessions({ live }: { live: boolean }) {
   const r = useApi<{ capUsdc: string; sessions: Session[] }>("/sessions");
-  if (r.loading && !r.data) return <Loading lines={6} />;
-  if (r.error) return <ErrorState error={r.error} onRetry={r.reload} />;
+  const head = (
+    <PageHead eyebrow="04 · Sessions" title="Prepaid balances for micro-calls">
+      Bridges have minimums, so small calls are paid from a session funded once and metered per call.
+    </PageHead>
+  );
+  if (r.loading && !r.data) return <>{head}<Loading lines={6} /></>;
+  if (r.error) return <>{head}<ErrorState error={r.error} onRetry={r.reload} /></>;
   const { capUsdc, sessions } = r.data!;
   const owed = sessions.filter((s) => s.refundState === "owed");
   return (
-    <Section idx="01" title="Prepaid sessions" aside={<span className="mono">cap {usdc(capUsdc, 2)} per session</span>}>
+    <>
+    {head}
+    <Section idx="01" title="Sessions" aside={<span className="mono">cap {usdc(capUsdc, 2)} per session</span>}>
       <p className="trust">
         One payment opens a session; calls are metered against it and settled in batches; the unused balance is refunded on close or after 24 hours.
         You hold session funds (never more than the cap) until close. The buyer holds a signed session receipt the whole time.
@@ -42,5 +49,6 @@ export function Sessions({ live }: { live: boolean }) {
         </div>
       )}
     </Section>
+    </>
   );
 }
