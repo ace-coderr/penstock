@@ -1,5 +1,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { Wordmark } from "./components/Wordmark";
+import { HostedBanner } from "./components/bits";
+import { STATIC_DEMO } from "./api";
 import { CardArt, HeroArt } from "./components/Iso";
 import { units } from "./format";
 import { useCountUp, useReveal } from "./motion";
@@ -19,8 +21,10 @@ function useStats(): { stats: Stats | null; state: "loading" | "ready" | "unavai
   const [s, set] = useState<{ stats: Stats | null; state: "loading" | "ready" | "unavailable" }>({ stats: null, state: "loading" });
   useEffect(() => {
     let live = true;
-    fetch("/api/public/stats")
-      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
+    const load: Promise<Stats> = STATIC_DEMO
+      ? import("./static/sim").then((m) => m.staticApi<Stats>("/public/stats"))
+      : fetch("/api/public/stats").then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))));
+    load
       .then((stats: Stats) => live && set({ stats, state: "ready" }))
       .catch(() => live && set({ stats: null, state: "unavailable" }));
     return () => {
@@ -109,6 +113,7 @@ export function Landing() {
     <div className="landing">
       <a className="skip" href="#main">Skip to content</a>
       <header className="l-top">
+        <HostedBanner />
         <div className="frame l-top-row">
           <a href="/" className="mark" aria-label="Penstock home"><Wordmark size={24} /></a>
           <nav className="l-links" aria-label="Site">
@@ -131,7 +136,7 @@ export function Landing() {
                 <a className="btn btn-primary" href="/app">Open the demo console</a>
                 <a className="btn btn-ghost" href="#how">How it works</a>
               </div>
-              <p className="l-note mono rise" style={{ "--i": 4 } as React.CSSProperties}>The demo runs locally with simulated payments: no keys, no funds, no network.</p>
+              <p className="l-note mono rise" style={{ "--i": 4 } as React.CSSProperties}>{STATIC_DEMO ? "This hosted demo runs entirely in your browser on simulated data. Run it locally for the real flow." : "The demo runs locally with simulated payments: no keys, no funds, no network."}</p>
             </div>
             <figure className="l-hero-art rise" style={{ "--i": 2 } as React.CSSProperties}>
               <HeroArt />

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { exportUrl, useApi, type Payment, type Receipt } from "../api";
+import { downloadCsv, exportUrl, STATIC_DEMO, useApi, type Payment, type Receipt } from "../api";
 import { Chain, Drawer, Empty, ErrorState, Loading, PageHead, Section, Sim, Status } from "../components/bits";
 import { CHAIN_META, explorerFor, isSimHash, originAmount, short, usd, usdc, when } from "../format";
 import { useNewIds } from "../motion";
@@ -18,7 +18,7 @@ function Hash({ chain, value }: { chain: string; value: string | null }) {
 }
 
 function ReceiptView({ id, onClose }: { id: string; onClose: () => void }) {
-  const r = useApi<{ payment: Payment; receipt: Receipt; receiptValid: boolean; upstreamReceipts?: (Receipt & { valid: boolean })[] }>(`/payments/${id}`);
+  const r = useApi<{ payment: Payment; receipt: Receipt; receiptValid: boolean | null; upstreamReceipts?: (Receipt & { valid: boolean })[] }>(`/payments/${id}`);
   return (
     <Drawer title={`Receipt ${id}`} onClose={onClose}>
       {r.loading && !r.data ? <Loading lines={8} /> : r.error ? <ErrorState error={r.error} onRetry={r.reload} /> : (() => {
@@ -64,8 +64,14 @@ function ReceiptView({ id, onClose }: { id: string; onClose: () => void }) {
               </div>
             )}
             <div className="sig">
-              <span className={receiptValid ? "msg-ok" : "msg-bad"}>{receiptValid ? "✓ Signature valid" : "✗ Signature does not verify"}</span>
-              <span className="muted"> · ed25519 · key {short(receipt.pub, 8)}</span>
+              {receiptValid === null ? (
+                <span className="muted">Generated in your browser by the hosted demo: simulated, not signed.</span>
+              ) : (
+                <>
+                  <span className={receiptValid ? "msg-ok" : "msg-bad"}>{receiptValid ? "✓ Signature valid" : "✗ Signature does not verify"}</span>
+                  <span className="muted"> · ed25519 · key {short(receipt.pub, 8)}{STATIC_DEMO ? " · signed when this hosted demo was built" : ""}</span>
+                </>
+              )}
               <pre>{JSON.stringify(receipt.body, null, 2)}</pre>
             </div>
           </>
@@ -86,7 +92,9 @@ export function Payments({ days }: { days: number }) {
   const pages = r.data ? Math.max(1, Math.ceil(r.data.total / PAGE)) : 1;
   return (
     <>
-    <PageHead eyebrow="02 · Payments" title="Every payment, receipt and refund" aside={<a className="btn btn-primary" href={exportUrl(days)} download>Export CSV ({days} days)</a>}>
+    <PageHead eyebrow="02 · Payments" title="Every payment, receipt and refund" aside={STATIC_DEMO
+      ? <button type="button" className="btn btn-primary" onClick={() => void downloadCsv(days)}>Export CSV ({days} days)</button>
+      : <a className="btn btn-primary" href={exportUrl(days)} download>Export CSV ({days} days)</a>}>
       Open any row for its signed receipt. Refunds are returned by the route to the payer's own address.
     </PageHead>
     <Section idx="01" title="Ledger entries" aside={r.data ? <span className="mono">{r.data.total} entries</span> : null}>

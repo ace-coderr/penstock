@@ -1,5 +1,5 @@
 import { useEffect, useRef, type ReactNode } from "react";
-import type { ApiError } from "../api";
+import { STATIC_DEMO, type ApiError } from "../api";
 import { CHAIN_META } from "../format";
 
 export function Section({ idx, title, aside, children }: { idx: string; title: string; aside?: ReactNode; children: ReactNode }) {
@@ -12,6 +12,19 @@ export function Section({ idx, title, aside, children }: { idx: string; title: s
       </div>
       {children}
     </section>
+  );
+}
+
+/** Persistent notice on every page of the hosted static build. */
+export function HostedBanner() {
+  if (!STATIC_DEMO) return null;
+  return (
+    <div className="hosted" role="note">
+      <div className="frame hosted-row">
+        <span className="sim">Simulated</span>
+        <span>Hosted demo: everything here is simulated. Run it locally for the real flow (see <a href="https://github.com/ace-coderr/penstock#try-it-do-x-see-y">README</a>).</span>
+      </div>
+    </div>
   );
 }
 

@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from "react";
-import { api, ApiError, useApi, type AccountCheck, type EndpointRow, type Shielded } from "../api";
+import { api, ApiError, STATIC_DEMO, useApi, type AccountCheck, type EndpointRow, type Shielded } from "../api";
 import { Empty, ErrorState, Loading, PageHead, Section } from "../components/bits";
 import { usdc } from "../format";
 
@@ -28,6 +28,8 @@ function Protect({ onDone }: { onDone: () => void }) {
   return (
     <form onSubmit={submit} aria-describedby="protect-help">
       <p id="protect-help" className="lede">Put a paywall in front of any HTTP API. Requests are forwarded only to this exact upstream, and only after payment. Private, metadata and credentialed URLs are refused.</p>
+      {STATIC_DEMO && <p className="banner" role="note"><span className="sim">Hosted demo</span> Protecting an endpoint needs the Penstock proxy. Run it locally (<code className="inline">pnpm demo</code>) to try this form.</p>}
+      <fieldset className="plain-fieldset" disabled={STATIC_DEMO}>
       <div className="form-grid">
         <div className="field"><label htmlFor="p-slug">Slug</label><input id="p-slug" name="slug" required pattern="[a-z0-9][a-z0-9\-]{0,59}" placeholder="fx-rates" /></div>
         <div className="field wide"><label htmlFor="p-up">Upstream URL</label><input id="p-up" name="upstream" required type="url" placeholder="https://api.example.com/v1/fx" /></div>
@@ -36,6 +38,7 @@ function Protect({ onDone }: { onDone: () => void }) {
         <div className="field"><label htmlFor="p-caps">Capabilities</label><input id="p-caps" name="caps" placeholder="fx, rates" /></div>
         <div className="field"><button className="btn btn-primary" disabled={busy}>{busy ? "Saving…" : "Protect endpoint"}</button></div>
       </div>
+      </fieldset>
       {msg && <p className={`msg ${msg.ok ? "msg-ok" : "msg-bad"}`} role="status">{msg.text}</p>}
     </form>
   );

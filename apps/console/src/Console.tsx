@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
-import { adminToken, setAdminToken, useApi, type Overview, type Payment } from "./api";
+import { adminToken, setAdminToken, STATIC_DEMO, useApi, type Overview, type Payment } from "./api";
 import { CHAIN_META, usdc } from "./format";
-import { ErrorState, Loading } from "./components/bits";
+import { ErrorState, HostedBanner, Loading } from "./components/bits";
 import { Wordmark } from "./components/Wordmark";
 import { Endpoints } from "./pages/Endpoints";
 import { Funnel } from "./pages/Funnel";
@@ -88,6 +88,7 @@ export function Console() {
     <>
       <a className="skip" href="#main">Skip to content</a>
       <header className="top">
+        <HostedBanner />
         <div className="frame">
           <div className="top-row">
             <a className="mark" href="/" aria-label="Penstock home">
@@ -103,7 +104,7 @@ export function Console() {
               )}
               {ov && ov.mode !== "live" && <span className="sim">{ov.mode} · simulated</span>}
               {ov && ov.mode === "live" && <span className="pill"><span className="dot dot-ok" />live · mainnet</span>}
-              <TokenField />
+              {!STATIC_DEMO && <TokenField />}
             </div>
           </div>
           <nav className="nav" aria-label="Console sections">

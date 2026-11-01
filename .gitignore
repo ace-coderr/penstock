@@ -11,3 +11,4 @@ data/
 *.tsbuildinfo
 .claude/
 CLAUDE.md
+apps/console/static-public/demo-snapshot.json
