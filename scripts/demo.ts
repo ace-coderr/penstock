@@ -5,7 +5,8 @@
  *   - seller console          http://localhost:4021
  *   - a simulated buyer agent that pays from random chains every few seconds (--no-agent to stop it)
  * Flags: --no-open (do not open a browser), --no-agent, --keep (keep the previous demo ledger),
- *        --mode dry|live (same launcher for the other modes; live requires the variables in .env.example).
+ *        --mode dry|live (same launcher for the other modes; live requires the variables in .env.example),
+ *        --shielded (turn on the Confidential Intents shielded-payer route).
  */
 import { spawn } from "node:child_process";
 import { rmSync } from "node:fs";
@@ -54,6 +55,7 @@ async function main() {
     PENSTOCK_LOG: process.env.PENSTOCK_LOG ?? "warn",
     PENSTOCK_PROXY_URL: `http://localhost:${PROXY_PORT}`,
     CONSOLE_PORT: String(CONSOLE_PORT),
+    ...(args.has("--shielded") ? { SHIELDED_CONFIDENTIAL_INTENTS: "true" } : {}),
   });
   const config = loadConfig();
 
@@ -80,6 +82,8 @@ async function main() {
   proxy       http://localhost:${PROXY_PORT}/healthz
   discovery   http://localhost:${PROXY_PORT}/.well-known/penstock.json
   paid API    http://localhost:${PROXY_PORT}/p/tidewater/tides?harbor=rotterdam   (returns 402 until paid)
+  resale      http://localhost:${PROXY_PORT}/p/tidewater/harbor-brief?harbor=halifax   (buys from 2 other sellers)
+  shielded    ${config.shieldedConfidentialIntents ? "Confidential Intents route ON (simulated)" : "off (pnpm demo --shielded turns it on)"}
 
   try:        pnpm selftest http://localhost:${PROXY_PORT}/p/tidewater/tides
   stop:       Ctrl+C

@@ -22,6 +22,8 @@ const GRACE_SEC = 24 * 3600;
 export interface ConfidentialityChooser {
   /** Returns the confidentiality level to request, or "public" when shielded mode is off. */
   level(): Confidentiality;
+  /** Called when 1Click refuses a confidential quote, so later quotes stop asking for it. */
+  unavailable?(reason: string): void;
 }
 
 export interface NearIntentsOptions {
@@ -132,7 +134,7 @@ export class NearIntentsMethod implements PaymentMethodHandler {
     const dest = req.extra.destination as Destination;
     const now = ctx.now();
     const deadlineMs = now + req.maxTimeoutSeconds * 1000;
-    const confidentiality = this.o.confidentiality?.level() ?? "public";
+    let confidentiality = this.o.confidentiality?.level() ?? "public";
     const qreq: QuoteRequest = {
       dry: false, swapType: "EXACT_OUTPUT", slippageTolerance, originAsset: asset.oneClickAssetId, depositType: "ORIGIN_CHAIN", depositMode: "SIMPLE",
       destinationAsset: DESTINATION.oneClickAssetId, amount: dest.amount, refundTo, refundType: "ORIGIN_CHAIN",
@@ -141,7 +143,17 @@ export class NearIntentsMethod implements PaymentMethodHandler {
     };
     let quote;
     try {
-      quote = await this.o.oneClick.quote(qreq);
+      try {
+        quote = await this.o.oneClick.quote(qreq);
+      } catch (e) {
+        // Shielded mode degrades gracefully: without 1Click auth, pay with a public quote instead of failing.
+        if (confidentiality === "public" || !(e instanceof OneClickError) || e.status !== 401) throw e;
+        this.o.confidentiality?.unavailable?.(e.message);
+        log("warn", "confidential quote refused by 1Click; falling back to a public quote", { status: e.status });
+        confidentiality = "public";
+        delete qreq.confidentiality;
+        quote = await this.o.oneClick.quote(qreq);
+      }
     } catch (e) {
       const msg = e instanceof OneClickError ? e.message : "1Click unavailable";
       const min = parseRouteMinimum(msg);

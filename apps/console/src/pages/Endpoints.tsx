@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from "react";
-import { api, ApiError, useApi, type AccountCheck, type EndpointRow } from "../api";
+import { api, ApiError, useApi, type AccountCheck, type EndpointRow, type Shielded } from "../api";
 import { Empty, ErrorState, Loading, Section } from "../components/bits";
 import { usdc } from "../format";
 
@@ -70,6 +70,38 @@ function AccountPanel({ initial }: { initial: AccountCheck }) {
   );
 }
 
+function ShieldedPanel() {
+  const r = useApi<Shielded>("/shielded");
+  if (r.loading && !r.data) return <Loading lines={3} />;
+  if (r.error) return <ErrorState error={r.error} onRetry={r.reload} />;
+  const s = r.data!;
+  return (
+    <>
+      <p className="lede">Shielded-payer mode hides who paid you and from where. It is optional: with every route off, payments are public and everything else works.</p>
+      <div className="table-wrap">
+        <table>
+          <thead><tr><th>Route</th><th>State</th><th>Why</th></tr></thead>
+          <tbody>
+            {s.routes.map((x) => (
+              <tr key={x.id}>
+                <td className="mono">{x.label}</td>
+                <td><span className={`st ${x.enabled ? "st-settled" : "st-pending"}`}>{x.enabled ? "enabled" : "not enabled"}</span></td>
+                <td style={{ whiteSpace: "normal" }}>{x.reason}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {s.scope && (
+        <p className="trust" style={{ marginTop: 16 }}>
+          <strong>Hides:</strong> {s.scope.hides}<br /><strong>Does not hide:</strong> {s.scope.doesNotHide}
+          <br /><span className="mono">{s.shieldedPayments} shielded payments in the ledger</span>
+        </p>
+      )}
+    </>
+  );
+}
+
 export function Endpoints({ account }: { account: AccountCheck }) {
   const r = useApi<{ endpoints: EndpointRow[] }>("/endpoints");
   return (
@@ -100,6 +132,7 @@ export function Endpoints({ account }: { account: AccountCheck }) {
       </Section>
       <Section idx="02" title="Protect an endpoint"><Protect onDone={r.reload} /></Section>
       <Section idx="03" title="Payout account check"><AccountPanel initial={account} /></Section>
+      <Section idx="04" title="Shielded payer routes"><ShieldedPanel /></Section>
     </>
   );
 }

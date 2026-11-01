@@ -5,6 +5,7 @@ import {
   type Endpoint, type Payment, type Probe, type SignedReceipt,
 } from "@penstock/core";
 import type { AccountChecker } from "./account-check";
+import type { ShieldedRoutes } from "@penstock/shielded";
 import { clientAddress, HttpError, readJson, sendJson, sendRaw } from "./http";
 import type { ProxyContext } from "./paywall";
 import { validateUpstreamUrl } from "./upstream";
@@ -155,7 +156,7 @@ export function exportCsv(ctx: ProxyContext, sellerId: string, from: number, to:
 
 const SLUG = /^[a-z0-9][a-z0-9-]{0,59}$/;
 
-export async function handleAdminApi(ctx: ProxyContext, accounts: AccountChecker, req: IncomingMessage, res: ServerResponse, url: URL): Promise<void> {
+export async function handleAdminApi(ctx: ProxyContext, accounts: AccountChecker, req: IncomingMessage, res: ServerResponse, url: URL, shielded?: ShieldedRoutes): Promise<void> {
   authorize(ctx, req);
   if (ctx.limiter.take("admin", clientAddress(req, ctx.trustProxy), ctx.now())) throw new HttpError(429, "rate limited", "rate_limited");
   const path = url.pathname.replace(/^\/api\/admin/, "");
@@ -193,6 +194,11 @@ export async function handleAdminApi(ctx: ProxyContext, accounts: AccountChecker
     const { secretHash: _omit, ...publicSession } = session ?? ({ secretHash: "" } as { secretHash: string });
     const resale = JSON.parse(ctx.store.getKv(`resale:${p.id}`) ?? "[]") as SignedReceipt[];
     return sendJson(res, 200, { payment: p, receipt, receiptValid: verifyReceipt(receipt), session: session ? publicSession : null, upstreamReceipts: resale.map((r) => ({ ...r, valid: verifyReceipt(r) })) });
+  }
+  if (method === "GET" && path === "/shielded") {
+    const sh = shielded ? await shielded.status() : { active: null, routes: [], scope: null };
+    const shieldedPayments = ctx.store.listPayments({ sellerId, limit: 5000 }).filter((p) => p.shielded).length;
+    return sendJson(res, 200, { ...sh, shieldedPayments });
   }
   if (method === "GET" && path === "/funnel") return sendJson(res, 200, funnel(ctx, sellerId, days));
   if (method === "GET" && path === "/sessions") return sendJson(res, 200, { capUsdc: parseUnits(ctx.config.sessionCapUsd, 6).toString(), sessions: ctx.store.listSessions(sellerId, 200) });

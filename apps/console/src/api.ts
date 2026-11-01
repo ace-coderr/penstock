@@ -50,6 +50,13 @@ export interface EndpointRow {
   methods: string[]; sessionsEnabled: boolean; resaleOf: string[]; calls: number; grossUsdc: string; upstreamCostUsdc: string; marginPerCallUsdc: string | null;
 }
 
+export interface Shielded {
+  active: string | null;
+  routes: { id: string; label: string; enabled: boolean; reason: string }[];
+  scope: { hides: string; doesNotHide: string } | null;
+  shieldedPayments: number;
+}
+
 export class ApiError extends Error {
   constructor(readonly status: number, message: string) {
     super(message);

@@ -9,6 +9,7 @@ import { DEFAULT_LIMITS, RateLimiter } from "./ratelimit";
 import { handlePublicApi } from "./public-api";
 import { SessionManager } from "./sessions";
 import { resaleDelivery } from "./resale";
+import { ShieldedRoutes } from "@penstock/shielded";
 import { discoveryDocument } from "./discovery";
 import { AccountChecker } from "./account-check";
 import { handleAdminApi } from "./admin-api";
@@ -33,6 +34,7 @@ export interface Proxy {
   intents: IntentsStack;
   sessions: SessionManager;
   accounts: AccountChecker;
+  shielded: ShieldedRoutes;
 }
 
 const SESSION_ROUTE = /^\/s\/([a-z0-9][a-z0-9-]{0,39})\/([a-z0-9][a-z0-9-]{0,59})\/(open|status|close)(?:\/([0-9]{1,12}))?$/;
@@ -54,8 +56,10 @@ export function createProxy(opts: ProxyOptions = {}): Proxy {
     seedStore(store, { origin: config.publicUrl, upstream: opts.upstreamBase ?? "http://127.0.0.1:4030", homeNearAccount: config.sellerNearAccount });
   }
   const accounts = new AccountChecker(config.mode, store);
+  const shielded = new ShieldedRoutes({ mode: config.mode, confidentialIntents: config.shieldedConfidentialIntents, oneClickJwt: config.oneClickJwt, auroraRpcUrl: config.shieldedAuroraRpcUrl });
   const intents = createIntentsStack(config, {
     oneClick: opts.oneClick,
+    confidentiality: shielded,
     recipientCheck: async (account) => {
       const r = await accounts.check(account);
       return { ok: r.exists !== false, message: r.message };
@@ -86,7 +90,9 @@ export function createProxy(opts: ProxyOptions = {}): Proxy {
     if (path === "/.well-known/penstock.json") {
       if (req.method !== "GET" && req.method !== "HEAD") throw new HttpError(405, "GET only", "method_not_allowed");
       const seller = url.searchParams.get("seller") ?? undefined;
-      return sendJson(res, 200, discoveryDocument(ctx, seller && /^[a-z0-9-]{1,40}$/.test(seller) ? seller : undefined), { ...PAID_CORS_HEADERS, "cache-control": "public, max-age=60" });
+      const doc = discoveryDocument(ctx, seller && /^[a-z0-9-]{1,40}$/.test(seller) ? seller : undefined);
+      const sh = await shielded.status();
+      return sendJson(res, 200, { ...doc, shieldedPayer: { active: sh.active, routes: sh.routes.map((r) => ({ id: r.id, enabled: r.enabled })), scope: sh.scope } }, { ...PAID_CORS_HEADERS, "cache-control": "public, max-age=60" });
     }
 
     const paid = PAID_ROUTE.exec(path);
@@ -124,7 +130,7 @@ export function createProxy(opts: ProxyOptions = {}): Proxy {
     }
 
     if (path.startsWith("/api/public/")) return handlePublicApi(ctx, intents, accounts, req, res, url);
-    if (path.startsWith("/api/admin/")) return handleAdminApi(ctx, accounts, req, res, url);
+    if (path.startsWith("/api/admin/")) return handleAdminApi(ctx, accounts, req, res, url, shielded);
 
     throw new HttpError(404, "not found", "not_found");
   };
@@ -140,5 +146,5 @@ export function createProxy(opts: ProxyOptions = {}): Proxy {
   server.requestTimeout = 60_000;
   server.on("listening", () => sessions.start());
   server.on("close", () => sessions.stop());
-  return { server, store, config, ctx, intents, sessions, accounts };
+  return { server, store, config, ctx, intents, sessions, accounts, shielded };
 }
