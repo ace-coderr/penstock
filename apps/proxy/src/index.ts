@@ -8,6 +8,7 @@ import { forwardDelivery, handleHttpPaid, handleMcpPaid, PAID_CORS_HEADERS, type
 import { DEFAULT_LIMITS, RateLimiter } from "./ratelimit";
 import { handlePublicApi } from "./public-api";
 import { SessionManager } from "./sessions";
+import { discoveryDocument } from "./discovery";
 
 export interface ProxyOptions {
   config?: PenstockConfig;
@@ -69,6 +70,12 @@ export function createProxy(opts: ProxyOptions = {}): Proxy {
 
     if (path === "/healthz") {
       return sendJson(res, 200, { ok: true, mode: config.mode, simulation: simulationScope(config.mode) });
+    }
+
+    if (path === "/.well-known/penstock.json") {
+      if (req.method !== "GET" && req.method !== "HEAD") throw new HttpError(405, "GET only", "method_not_allowed");
+      const seller = url.searchParams.get("seller") ?? undefined;
+      return sendJson(res, 200, discoveryDocument(ctx, seller && /^[a-z0-9-]{1,40}$/.test(seller) ? seller : undefined), { ...PAID_CORS_HEADERS, "cache-control": "public, max-age=60" });
     }
 
     const paid = PAID_ROUTE.exec(path);

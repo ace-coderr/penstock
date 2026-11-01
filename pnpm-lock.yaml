@@ -97,6 +97,9 @@ importers:
       '@penstock/core':
         specifier: workspace:*
         version: link:../core
+      '@penstock/intents-adapter':
+        specifier: workspace:*
+        version: link:../intents-adapter
       '@x402/core':
         specifier: 2.29.0
         version: 2.29.0
