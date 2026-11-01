@@ -47,14 +47,17 @@ You need Node 22.13+ (Node 24 recommended) and pnpm 9 (`corepack enable` provide
    ```bash
    pnpm demo
    ```
-   You should see a banner that starts `PENSTOCK  demo mode: every quote, deposit and settlement is SIMULATED`. Under it are the URLs, followed by `agent  paid …` lines every 7 seconds from a simulated buyer agent. Your browser opens the console at http://localhost:4021/. If it does not open, open the URL yourself (or use `pnpm dev`, which never opens a browser).
+   You should see a banner that starts `PENSTOCK  demo mode: every quote, deposit and settlement is SIMULATED`. Under it are the URLs, followed by `agent  paid …` lines every 7 seconds from a simulated buyer agent. Your browser opens the seller console at http://localhost:4021/app. If it does not open, open the URL yourself (or use `pnpm dev`, which never opens a browser). The product's landing page is at http://localhost:4021/.
 
-3. **Read the console in ten seconds.** On **01 Ledger** you should see:
+3. **Read the console in ten seconds.** On **01 Ledger** (http://localhost:4021/app) you should see:
+   - the heading "What came in, and from where";
    - a large "Received into your account" total in USDC;
-   - flow lines from about eight chains converging on one box, `USDC · NEAR tidewater-data.near`;
-   - an amber `DEMO MODE · SIMULATED` badge and banner.
+   - teal flow lines from about eight chains converging on one box, `USDC · NEAR tidewater-data.near`;
+   - an amber `DEMO · SIMULATED` badge and banner.
 
-   Each line's thickness is the USDC that arrived from that chain.
+   Each line's thickness is the USDC that arrived from that chain. Every tab opens with a heading that says what it is for.
+
+   The landing page at http://localhost:4021/ shows the same flow as an isometric diagram. Its three large numbers are read live from the demo ledger, and each is labelled "simulated demo data".
 
 4. **Watch the paywall refuse an unpaid call.**
    ```bash
@@ -80,7 +83,7 @@ You need Node 22.13+ (Node 24 recommended) and pnpm 9 (`corepack enable` provide
    - both transaction hashes, each tagged `simulated`;
    - `✓ Signature valid · ed25519` with the signed JSON.
 
-8. **Export the books.** On **02 Payments**, click **Export CSV (30 days)**. You get `penstock-tidewater-….csv`, with one row per sale, session funding and session refund. The columns are gross, refund, upstream cost, net, what the buyer paid and on which chain, the route fee, and both hashes. Spreadsheet formula injection is neutralised.
+8. **Export the books.** On **02 Payments**, the **Refunds** filter shows every payment the route returned to its payer. Click **Export CSV (30 days)**. You get `penstock-tidewater-….csv`, with one row per sale, session funding and session refund. The columns are gross, refund, upstream cost, net, what the buyer paid and on which chain, the route fee, and both hashes. Spreadsheet formula injection is neutralised.
 
 9. **See where buyers dropped off.** On **03 Funnel** you should see probed → quoted → deposited → paid bars, and a "Why buyers stopped" table marked **INFERRED**. Reasons are inferred from behaviour, never stated by the buyer.
 
@@ -111,7 +114,7 @@ You need Node 22.13+ (Node 24 recommended) and pnpm 9 (`corepack enable` provide
     ```bash
     pnpm test
     ```
-    You should see `Tests 93 passed`. `pnpm lint` and `pnpm typecheck` are also clean, and `pnpm check` runs all three.
+    You should see `Tests 95 passed`. `pnpm lint` and `pnpm typecheck` are also clean, and `pnpm check` runs all three.
 
 16. **Use the buyer as an MCP server.** With the demo running, add this to any MCP client:
     ```json
@@ -191,7 +194,8 @@ Single payments are non-custodial. USDC goes from 1Click, or from the buyer's ow
 ```
 apps/proxy              Node HTTP server: paywall (HTTP + MCP), sessions, discovery, public routes API,
                         admin API for the console, simulated-deposit endpoint (demo/dry only)
-apps/console            React + Vite seller console (ledger, payments, receipts, funnel, sessions, endpoints)
+apps/console            React + Vite: landing page at / and seller console at /app (ledger, payments, receipts,
+                        funnel, sessions, endpoints); design tokens in src/tokens.css, illustrations drawn in code
 packages/core           types, chain registry, money math, config/modes, SQLite ledger (node:sqlite),
                         ed25519 receipts, redacting logger, deterministic seed data
 packages/intents-adapter  the ONLY module that knows the near-intents and 1Click wire shapes: 1Click client
@@ -271,7 +275,7 @@ The audit and its results are in [docs/AUDIT.md](docs/AUDIT.md). Main measures:
 - **x402** is by the [x402 Foundation](https://github.com/x402-foundation/x402). Penstock uses `@x402/core` and `@x402/near` 2.29.0 (Apache-2.0).
 - **[fastnear/x402-facilitator](https://github.com/fastnear/x402-facilitator)** is the reference NEAR facilitator used for live `exact` settlement.
 - **NEAR Intents 1Click API** ([docs](https://docs.near-intents.org/)): quotes, deposit addresses, status and refunds.
-- **Libraries:** React, Vite, `@near-js/*`, IBM Plex fonts via `@fontsource`, Vitest, ESLint, TypeScript and tsx. All were written by others and used under their licenses. There is no pre-hackathon code: the repository was started on 2026-11-01.
+- **Libraries:** React, Vite, `@near-js/*`, Newsreader, Geist and JetBrains Mono fonts via `@fontsource`, Vitest, ESLint, TypeScript and tsx. All were written by others and used under their licenses. There is no pre-hackathon code: the repository was started on 2026-11-01.
 
 Parts of this codebase were written with AI assistance.
 

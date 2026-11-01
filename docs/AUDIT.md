@@ -2,7 +2,7 @@
 
 This is a self-audit of Penstock at the end of development, done on 2026-11-01. Each item says what was checked and how. "Fixed" means a code change landed with a regression test. "Held" means the existing design already handled it and a test proves it. "Remains" means it is not solved and is stated plainly.
 
-Tests: `pnpm test` runs 93 tests in 15 files. The audit-specific tests are in `apps/proxy/test/audit.test.ts`.
+Tests: `pnpm test` runs 95 tests in 16 files. The audit-specific tests are in `apps/proxy/test/audit.test.ts`.
 
 ## Results
 
@@ -41,7 +41,8 @@ Tests: `pnpm test` runs 93 tests in 15 files. The audit-specific tests are in `a
 | 32 | Resale loops | A resale endpoint could resell itself, or chains could loop between sellers. | Held: resale is refused on the endpoint's own URL, and chains are capped at 3 hops (`penstock-resale-depth`). Upstream URLs pass `validateUpstreamUrl`. Live resale refuses payment until `RESALE_NEAR_KEY` is set, so a buyer never pays for a call that cannot be delivered. (`resale.test.ts`) |
 | 33 | Shielded mode degradation | Real 1Click returns 401 for confidential quotes without auth. Failing the payment would break checkout. | Held: on a 401 the route turns itself off, the quote is retried as public, and the payment is booked as not shielded. The console and discovery show "not enabled" with the reason. The Aurora route never claims it can route payments. (`shielded.test.ts`) |
 | 34 | Resale books under sessions | Found in the final clean-clone run: a session-metered call to a resale endpoint overwrote the funding payment's upstream cost instead of adding to it, so session books under-reported what the seller paid upstream. | **Fixed**: costs and upstream receipts accumulate on the funding payment (`resale.test.ts`) |
-| 31 | Clean-clone run | Fresh `git clone` into an empty folder, then `pnpm install` → `pnpm test` (93 passed in the final run) → lint and typecheck clean → `pnpm demo` → README steps 4–8 (402 with 19 entries, both self-tests PASS, CSV with 480 rows, console with 8 chains). | Held |
+| 35 | Public landing stats | The landing page shows headline numbers. Publishing them must not expose a live seller's revenue. | Held: `GET /api/public/stats` answers only in demo and dry mode (simulated data, flagged `simulated: true`) and returns 404 in live mode (`public-stats.test.ts`) |
+| 31 | Clean-clone run | Fresh `git clone` into an empty folder, then `pnpm install` → `pnpm test` (95 passed in the final run) → lint and typecheck clean → `pnpm demo` → README steps 4–8 (402 with 19 entries, both self-tests PASS, CSV with 480 rows, console with 8 chains). | Held |
 
 ## What remains
 
