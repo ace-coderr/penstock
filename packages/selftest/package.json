@@ -4,6 +4,13 @@
   "private": true,
   "type": "module",
   "license": "MIT",
-  "exports": { ".": "./src/index.ts" },
-  "dependencies": { "@penstock/core": "workspace:*" }
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@penstock/core": "workspace:*",
+    "@penstock/buyer-mcp": "workspace:*",
+    "@penstock/intents-adapter": "workspace:*",
+    "@x402/core": "2.29.0"
+  }
 }

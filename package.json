@@ -19,10 +19,15 @@
     "test": "vitest run",
     "typecheck": "tsc -p tsconfig.json --noEmit && pnpm --filter @penstock/console typecheck",
     "lint": "eslint .",
-    "check": "pnpm lint && pnpm typecheck && pnpm test"
+    "check": "pnpm lint && pnpm typecheck && pnpm test",
+    "buyer-mcp": "pnpm --filter @penstock/buyer-mcp start"
   },
   "dependencies": {
-    "@penstock/core": "workspace:*"
+    "@penstock/core": "workspace:*",
+    "@penstock/proxy": "workspace:*",
+    "@penstock/buyer-mcp": "workspace:*",
+    "@penstock/example-upstream-apis": "workspace:*",
+    "@penstock/selftest": "workspace:*"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",

@@ -19,6 +19,7 @@
   },
   "devDependencies": {
     "@penstock/buyer-mcp": "workspace:*",
-    "@penstock/example-upstream-apis": "workspace:*"
+    "@penstock/example-upstream-apis": "workspace:*",
+    "@penstock/selftest": "workspace:*"
   }
 }

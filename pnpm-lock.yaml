@@ -8,9 +8,21 @@ importers:
 
   .:
     dependencies:
+      '@penstock/buyer-mcp':
+        specifier: workspace:*
+        version: link:packages/buyer-mcp
       '@penstock/core':
         specifier: workspace:*
         version: link:packages/core
+      '@penstock/example-upstream-apis':
+        specifier: workspace:*
+        version: link:examples/upstream-apis
+      '@penstock/proxy':
+        specifier: workspace:*
+        version: link:apps/proxy
+      '@penstock/selftest':
+        specifier: workspace:*
+        version: link:packages/selftest
     devDependencies:
       '@eslint/js':
         specifier: 10.0.1
@@ -89,6 +101,9 @@ importers:
       '@penstock/example-upstream-apis':
         specifier: workspace:*
         version: link:../../examples/upstream-apis
+      '@penstock/selftest':
+        specifier: workspace:*
+        version: link:../../packages/selftest
 
   examples/upstream-apis: {}
 
@@ -130,9 +145,18 @@ importers:
 
   packages/selftest:
     dependencies:
+      '@penstock/buyer-mcp':
+        specifier: workspace:*
+        version: link:../buyer-mcp
       '@penstock/core':
         specifier: workspace:*
         version: link:../core
+      '@penstock/intents-adapter':
+        specifier: workspace:*
+        version: link:../intents-adapter
+      '@x402/core':
+        specifier: 2.29.0
+        version: 2.29.0
 
   packages/shielded:
     dependencies:
