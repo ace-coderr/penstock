@@ -1,0 +1,1 @@
+{"message":"Deposit address 0x0000000000000000000000000000000000000001 not found","error":"Not Found","statusCode":404,"timestamp":"2026-11-01T07:50:39.151Z","path":"/v0/status?depositAddress=0x0000000000000000000000000000000000000001"}
