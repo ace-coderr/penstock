@@ -9,6 +9,8 @@ import { DEFAULT_LIMITS, RateLimiter } from "./ratelimit";
 import { handlePublicApi } from "./public-api";
 import { SessionManager } from "./sessions";
 import { discoveryDocument } from "./discovery";
+import { AccountChecker } from "./account-check";
+import { handleAdminApi } from "./admin-api";
 
 export interface ProxyOptions {
   config?: PenstockConfig;
@@ -29,6 +31,7 @@ export interface Proxy {
   ctx: ProxyContext;
   intents: IntentsStack;
   sessions: SessionManager;
+  accounts: AccountChecker;
 }
 
 const SESSION_ROUTE = /^\/s\/([a-z0-9][a-z0-9-]{0,39})\/([a-z0-9][a-z0-9-]{0,59})\/(open|status|close)(?:\/([0-9]{1,12}))?$/;
@@ -49,7 +52,14 @@ export function createProxy(opts: ProxyOptions = {}): Proxy {
   if (config.mode !== "live") {
     seedStore(store, { origin: config.publicUrl, upstream: opts.upstreamBase ?? "http://127.0.0.1:4030", homeNearAccount: config.sellerNearAccount });
   }
-  const intents = createIntentsStack(config, { oneClick: opts.oneClick });
+  const accounts = new AccountChecker(config.mode, store);
+  const intents = createIntentsStack(config, {
+    oneClick: opts.oneClick,
+    recipientCheck: async (account) => {
+      const r = await accounts.check(account);
+      return { ok: r.exists !== false, message: r.message };
+    },
+  });
   const ctx: ProxyContext = {
     config,
     store,
@@ -113,6 +123,7 @@ export function createProxy(opts: ProxyOptions = {}): Proxy {
     }
 
     if (path.startsWith("/api/public/")) return handlePublicApi(ctx, intents, req, res, url);
+    if (path.startsWith("/api/admin/")) return handleAdminApi(ctx, accounts, req, res, url);
 
     throw new HttpError(404, "not found", "not_found");
   };
@@ -128,5 +139,5 @@ export function createProxy(opts: ProxyOptions = {}): Proxy {
   server.requestTimeout = 60_000;
   server.on("listening", () => sessions.start());
   server.on("close", () => sessions.stop());
-  return { server, store, config, ctx, intents, sessions };
+  return { server, store, config, ctx, intents, sessions, accounts };
 }

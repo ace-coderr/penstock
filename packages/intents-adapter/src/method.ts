@@ -33,6 +33,8 @@ export interface NearIntentsOptions {
   settleWindowMs?: number;
   pollIntervalMs?: number;
   confidentiality?: ConfidentialityChooser;
+  /** Checks the seller's payout account before quoting (1Click rejects missing NEAR accounts). */
+  recipientCheck?: (account: string) => Promise<{ ok: boolean; message: string }>;
   /** Origins to offer; defaults to every registry asset except NEAR USDC (paid via `exact`). */
   origins?: { chain: ChainInfo; asset: AssetInfo }[];
 }
@@ -65,7 +67,7 @@ function sleep(ms: number): Promise<void> {
 export class NearIntentsMethod implements PaymentMethodHandler {
   readonly id = "near-intents" as const;
   readonly simulated: boolean;
-  private readonly o: Required<Omit<NearIntentsOptions, "confidentiality">> & { confidentiality?: ConfidentialityChooser };
+  private readonly o: Required<Omit<NearIntentsOptions, "confidentiality" | "recipientCheck">> & Pick<NearIntentsOptions, "confidentiality" | "recipientCheck">;
 
   constructor(opts: NearIntentsOptions) {
     this.simulated = opts.simulated;
@@ -119,6 +121,11 @@ export class NearIntentsMethod implements PaymentMethodHandler {
     if (!isValidAddress(chain, refundTo)) return { kind: "rejected", reason: "invalid_payload", message: `refundTo must be a valid ${chain.label} address (e.g. ${chain.addressExample})` };
     if (ctx.allow && !ctx.allow("quote")) return { kind: "rejected", reason: "rate_limited", message: "too many quote requests; slow down" };
 
+    const dest0 = req.extra.destination as Destination;
+    if (this.o.recipientCheck) {
+      const rc = await this.o.recipientCheck(dest0.recipient);
+      if (!rc.ok) return { kind: "rejected", reason: "invalid_exact_near_intents_quote_unavailable", message: rc.message };
+    }
     const s = this.o.slippage;
     const asked = typeof p.slippageTolerance === "number" && Number.isFinite(p.slippageTolerance) ? Math.round(p.slippageTolerance) : s.default;
     const slippageTolerance = Math.min(s.max, Math.max(s.min, asked));

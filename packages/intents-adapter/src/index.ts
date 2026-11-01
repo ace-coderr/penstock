@@ -32,7 +32,7 @@ export interface IntentsStack {
   warm(): Promise<void>;
 }
 
-export function createIntentsStack(config: PenstockConfig, opts: { confidentiality?: ConfidentialityChooser; oneClick?: OneClick } = {}): IntentsStack {
+export function createIntentsStack(config: PenstockConfig, opts: { confidentiality?: ConfidentialityChooser; oneClick?: OneClick; recipientCheck?: (account: string) => Promise<{ ok: boolean; message: string }> } = {}): IntentsStack {
   const keys = { currentKeyId: config.operationTokenKeyId, keys: new Map([[config.operationTokenKeyId, config.operationTokenSecret]]) };
   let oneClick: OneClick;
   let sim: SimulatedOneClick | null = null;
@@ -53,7 +53,7 @@ export function createIntentsStack(config: PenstockConfig, opts: { confidentiali
     }
   }
   const pricer = new TokenPricePricer(recordedTokens());
-  const method = new NearIntentsMethod({ oneClick, keys, pricer, simulated: config.mode !== "live", confidentiality: opts.confidentiality });
+  const method = new NearIntentsMethod({ oneClick, keys, pricer, simulated: config.mode !== "live", confidentiality: opts.confidentiality, recipientCheck: opts.recipientCheck });
   return {
     oneClick, method, pricer, sim, planner: new RoutePlanner(oneClick),
     async warm() {

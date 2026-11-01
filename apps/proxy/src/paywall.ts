@@ -154,6 +154,7 @@ export async function decide(ctx: ProxyContext, seller: Seller, endpointIn: Endp
       });
       payment.receiptSig = receipt.sig;
       ctx.store.insertPayment(payment);
+      ctx.store.setKv(`receipt:${payment.id}`, JSON.stringify(receipt));
       ctx.store.advanceProbe(endpoint.id, buyer, "paid", { originChain: payment.originChain, paymentId: payment.id });
       return { type: "paid", payment, settle: outcome.settle, receipt };
     }
