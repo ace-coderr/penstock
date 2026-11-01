@@ -165,7 +165,7 @@ export class HttpOneClick implements OneClick {
     if (this.opts.jwt) headers.authorization = `Bearer ${this.opts.jwt}`;
     const res = await this.f(`${this.opts.baseUrl}${path}`, { ...init, headers, signal: AbortSignal.timeout(this.opts.timeoutMs ?? 15_000) });
     const text = await res.text();
-    let body: unknown = null;
+    let body: unknown;
     try {
       body = text ? JSON.parse(text) : null;
     } catch {

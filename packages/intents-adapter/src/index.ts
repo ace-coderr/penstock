@@ -19,6 +19,7 @@ export * from "./token";
 export * from "./method";
 export * from "./pricing";
 export * from "./routes";
+export * from "./client";
 
 export interface IntentsStack {
   oneClick: OneClick;
