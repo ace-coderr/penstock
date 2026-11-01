@@ -1,11 +1,12 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import { join } from "node:path";
-import { loadConfig, log, ReceiptSigner, seedStore, simulationScope, Store, type PenstockConfig } from "@penstock/core";
-import { HttpError, sendJson, sendRaw } from "./http";
+import { loadConfig, log, ReceiptSigner, seedStore, simulationScope, Store, type PaymentMethodHandler, type PenstockConfig } from "@penstock/core";
+import { createIntentsStack, type IntentsStack, type OneClick } from "@penstock/intents-adapter";
+import { clientAddress, HttpError, readJson, sendJson, sendRaw } from "./http";
 import { ExactNearMethod, httpExactFacilitator, simulatedExactFacilitator, type ExactFacilitator } from "./methods/exact-near";
-import type { PaymentMethodHandler } from "./methods/types";
 import { forwardDelivery, handleHttpPaid, handleMcpPaid, PAID_CORS_HEADERS, type ProxyContext } from "./paywall";
 import { DEFAULT_LIMITS, RateLimiter } from "./ratelimit";
+import { handlePublicApi } from "./public-api";
 
 export interface ProxyOptions {
   config?: PenstockConfig;
@@ -13,6 +14,7 @@ export interface ProxyOptions {
   upstreamBase?: string;
   receipts?: ReceiptSigner;
   exactFacilitator?: ExactFacilitator;
+  oneClick?: OneClick;
   /** Replace the payment methods entirely (tests). */
   methods?: PaymentMethodHandler[];
   now?: () => number;
@@ -23,26 +25,18 @@ export interface Proxy {
   store: Store;
   config: PenstockConfig;
   ctx: ProxyContext;
+  intents: IntentsStack;
 }
 
 const PAID_ROUTE = /^\/p\/([a-z0-9][a-z0-9-]{0,39})\/([a-z0-9][a-z0-9-]{0,59})(\/[^?#]*)?$/;
 
-function buildMethods(config: PenstockConfig, opts: ProxyOptions): PaymentMethodHandler[] {
-  if (opts.methods) return opts.methods;
-  let exact: ExactFacilitator;
-  let exactSimulated: boolean;
-  if (opts.exactFacilitator) {
-    exact = opts.exactFacilitator;
-    exactSimulated = config.mode !== "live";
-  } else if (config.mode === "live") {
+function buildExact(config: PenstockConfig, opts: ProxyOptions): ExactNearMethod {
+  if (opts.exactFacilitator) return new ExactNearMethod(opts.exactFacilitator, config.mode !== "live");
+  if (config.mode === "live") {
     if (!config.facilitatorUrl) throw new Error("FACILITATOR_URL is required in live mode for the exact NEAR scheme");
-    exact = httpExactFacilitator(config.facilitatorUrl, config.facilitatorApiKey);
-    exactSimulated = false;
-  } else {
-    exact = simulatedExactFacilitator();
-    exactSimulated = true;
+    return new ExactNearMethod(httpExactFacilitator(config.facilitatorUrl, config.facilitatorApiKey), false);
   }
-  return [new ExactNearMethod(exact, exactSimulated)];
+  return new ExactNearMethod(simulatedExactFacilitator(), true);
 }
 
 export function createProxy(opts: ProxyOptions = {}): Proxy {
@@ -51,10 +45,11 @@ export function createProxy(opts: ProxyOptions = {}): Proxy {
   if (config.mode !== "live") {
     seedStore(store, { origin: config.publicUrl, upstream: opts.upstreamBase ?? "http://127.0.0.1:4030", homeNearAccount: config.sellerNearAccount });
   }
+  const intents = createIntentsStack(config, { oneClick: opts.oneClick });
   const ctx: ProxyContext = {
     config,
     store,
-    methods: buildMethods(config, opts),
+    methods: opts.methods ?? [buildExact(config, opts), intents.method],
     receipts: opts.receipts ?? (opts.store ? ReceiptSigner.ephemeral() : ReceiptSigner.fromDir(config.dataDir)),
     limiter: new RateLimiter(DEFAULT_LIMITS),
     allowPrivateUpstreams: config.allowPrivateUpstreams,
@@ -81,6 +76,24 @@ export function createProxy(opts: ProxyOptions = {}): Proxy {
       return handleHttpPaid(ctx, req, res, seller, endpoint, paid[3] ?? "", url.search);
     }
 
+    // Simulated origin-chain transfer into a simulated deposit address (demo and dry mode only).
+    if (path === "/sim/deposit" && req.method === "POST") {
+      if (config.mode === "live" || !intents.sim) throw new HttpError(404, "not found", "not_found");
+      if (ctx.limiter.take("request", clientAddress(req, ctx.trustProxy), ctx.now())) throw new HttpError(429, "rate limited", "rate_limited");
+      const body = await readJson<{ depositAddress?: string; amount?: string }>(req, 4096);
+      if (typeof body.depositAddress !== "string" || typeof body.amount !== "string" || !body.depositAddress.startsWith("sim")) {
+        throw new HttpError(400, "depositAddress (sim…) and amount (base units) are required", "invalid_request");
+      }
+      try {
+        const txHash = intents.sim.deposit(body.depositAddress, body.amount);
+        return sendJson(res, 200, { txHash, simulated: true }, PAID_CORS_HEADERS);
+      } catch (e) {
+        throw new HttpError((e as { status?: number }).status ?? 400, (e as Error).message, "deposit_rejected");
+      }
+    }
+
+    if (path.startsWith("/api/public/")) return handlePublicApi(ctx, intents, req, res, url);
+
     throw new HttpError(404, "not found", "not_found");
   };
 
@@ -93,5 +106,5 @@ export function createProxy(opts: ProxyOptions = {}): Proxy {
   });
   server.headersTimeout = 15_000;
   server.requestTimeout = 60_000;
-  return { server, store, config, ctx };
+  return { server, store, config, ctx, intents };
 }

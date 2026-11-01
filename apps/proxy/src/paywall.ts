@@ -6,7 +6,7 @@ import {
   type PenstockConfig, type ReceiptSigner, type ResourceInfo, type Seller, type SettleResponse, type SignedReceipt, type Store,
 } from "@penstock/core";
 import { clientAddress, headerValue, HttpError, readBody, sendJson, sendRaw } from "./http";
-import type { MethodOutcome, PaymentMethodHandler } from "./methods/types";
+import type { MethodOutcome, PaymentMethodHandler } from "@penstock/core";
 import type { RateLimiter } from "./ratelimit";
 import { buildTargetUrl, filterRequestHeaders, forward, type UpstreamResult } from "./upstream";
 
@@ -101,7 +101,7 @@ export async function decide(ctx: ProxyContext, seller: Seller, endpoint: Endpoi
 
   let outcome: MethodOutcome;
   try {
-    outcome = await handler.process(payload, requirement, { store: ctx.store, now: ctx.now }, { endpoint, seller, buyer, resource });
+    outcome = await handler.process(payload, requirement, { store: ctx.store, now: ctx.now, allow: (a) => ctx.limiter.take(a, buyer, ctx.now()) === 0 }, { endpoint, seller, buyer, resource });
   } catch (e) {
     log("error", "payment processing failed", { endpoint: endpoint.id, method: handler.id, error: (e as Error).message });
     return { type: "required", paymentRequired: required("payment could not be processed; try again") };
@@ -117,8 +117,15 @@ export async function decide(ctx: ProxyContext, seller: Seller, endpoint: Endpoi
       ctx.store.advanceProbe(endpoint.id, buyer, "deposited");
       return { type: "required", paymentRequired: required("settlement pending: retry with the same payload"), settle: outcome.settle, retryAfter: 5 };
     case "rejected":
-      if (outcome.settle?.extra && (outcome.settle.extra as { status?: string }).status === "REFUNDED") {
-        ctx.store.advanceProbe(endpoint.id, buyer, "refunded");
+      if (outcome.refund) {
+        // Funds moved and were returned to the payer by 1Click: record the refund in the books.
+        const { refundedAmount, refundReason, ...fields } = outcome.refund;
+        const status = "refunded" as const;
+        if (!fields.operationId || !ctx.store.paymentByOperation(fields.operationId)) {
+          const id = `pay_${randomUUID().replace(/-/g, "").slice(0, 16)}`;
+          ctx.store.insertPayment({ id, ts: ctx.now(), sellerId: seller.id, endpointId: endpoint.id, status, ...fields, refundedAmount, refundReason, sessionId: null, upstreamCost: "0", simulated: handler.simulated, receiptSig: null });
+          ctx.store.advanceProbe(endpoint.id, buyer, "refunded", { paymentId: id });
+        }
       }
       return { type: "required", paymentRequired: required(`${outcome.reason}: ${outcome.message}`), settle: outcome.settle };
     case "settled": {

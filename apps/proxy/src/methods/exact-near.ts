@@ -6,7 +6,7 @@ import {
   DESTINATION, formatUnits, simNearBlockHeight,
   type Endpoint, type PaymentPayload, type PaymentRequirements, type ResourceInfo, type Seller, type SettleResponse, type VerifyResponse,
 } from "@penstock/core";
-import type { MethodContext, MethodOutcome, PaymentMethodHandler } from "./types";
+import type { MethodContext, MethodOutcome, PaymentMethodHandler } from "@penstock/core";
 
 /**
  * Standard x402 `exact` on NEAR (@x402/near): the buyer signs a NEP-366 delegate action with one

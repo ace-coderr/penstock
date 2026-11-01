@@ -7,3 +7,4 @@ export * from "./store";
 export * from "./seed";
 export { log } from "./log";
 export * from "./sim";
+export * from "./method";

@@ -1,8 +1,11 @@
-import type { Endpoint, Payment, PaymentMethod, PaymentPayload, PaymentRequirements, ResourceInfo, Seller, SettleResponse, Store } from "@penstock/core";
+import type { Store } from "./store";
+import type { Endpoint, Payment, PaymentMethod, PaymentPayload, PaymentRequirements, ResourceInfo, Seller, SettleResponse } from "./types";
 
 export interface MethodContext {
   store: Store;
   now(): number;
+  /** Rate-limit check for costly actions (e.g. minting a quote); false means refuse. */
+  allow?(action: string): boolean;
 }
 
 /** Ledger fields a method fills in once a payment settles. */
@@ -15,7 +18,11 @@ export type MethodOutcome =
   /** near-intents only: a quote was minted; respond with a second 402 carrying this entry. */
   | { kind: "quoted"; quoted: PaymentRequirements; buyerChain: string }
   | { kind: "pending"; settle: SettleResponse }
-  | { kind: "rejected"; reason: string; message: string; settle?: SettleResponse };
+  /**
+   * Payment refused or failed. `refund` is set when funds moved and were returned to the payer
+   * (near-intents REFUNDED/FAILED), so the ledger can record the refund.
+   */
+  | { kind: "rejected"; reason: string; message: string; settle?: SettleResponse; refund?: SettledPaymentFields & { refundedAmount: string | null; refundReason: string | null } };
 
 export interface MethodMeta {
   endpoint: Endpoint;
