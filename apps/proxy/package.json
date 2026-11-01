@@ -1,0 +1,15 @@
+{
+  "name": "@penstock/proxy",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "license": "MIT",
+  "exports": { ".": "./src/index.ts" },
+  "scripts": { "start": "tsx src/main.ts" },
+  "dependencies": {
+    "@penstock/core": "workspace:*",
+    "@penstock/intents-adapter": "workspace:*",
+    "@penstock/shielded": "workspace:*",
+    "@x402/core": "2.29.0"
+  }
+}
