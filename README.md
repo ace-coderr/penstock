@@ -114,7 +114,7 @@ You need Node 22.13+ (Node 24 recommended) and pnpm 9 (`corepack enable` provide
     ```bash
     pnpm test
     ```
-    You should see `Tests 95 passed`. `pnpm lint` and `pnpm typecheck` are also clean, and `pnpm check` runs all three.
+    You should see `Tests 109 passed`. `pnpm lint` and `pnpm typecheck` are also clean, and `pnpm check` runs all three.
 
 16. **Use the buyer as an MCP server.** With the demo running, add this to any MCP client:
     ```json
@@ -177,6 +177,15 @@ pnpm build:static
 pnpm --filter @penstock/console preview:static
 ```
 Open http://localhost:4031/ (landing) and http://localhost:4031/app (console). The output is in `apps/console/dist`.
+
+To serve it with Cloudflare Pages' rules (the `_headers` CSP and the `_redirects` rewrites) and audit the bundle:
+```bash
+pnpm serve:static
+```
+```bash
+pnpm audit:static
+```
+`serve:static` serves http://localhost:4032/. `audit:static` checks the build: no secrets or personal data, no `data:` URIs, only same-origin requests, the CSP and rewrites in place, reduced-motion rules present, every row simulated. It prints `PASS` or the failures.
 
 **Cloudflare Pages dashboard values** (Workers & Pages → Create → Pages → Connect to Git → this repository):
 

@@ -14,7 +14,9 @@ export default defineConfig(({ mode }) => {
     plugins: [react()],
     define: { "import.meta.env.VITE_STATIC_DEMO": JSON.stringify(isStatic ? "1" : "") },
     publicDir: isStatic ? "static-public" : false,
-    build: { outDir: "dist", emptyOutDir: true, sourcemap: false },
+    // No data: URIs in the static build: every asset is a same-origin file, so the strict CSP
+    // (font-src 'self') in static-public/_headers holds without exceptions.
+    build: { outDir: "dist", emptyOutDir: true, sourcemap: false, assetsInlineLimit: isStatic ? 0 : undefined },
     server: {
       port: Number(process.env.CONSOLE_PORT ?? 4021),
       strictPort: true,

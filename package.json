@@ -23,7 +23,9 @@
     "buyer-mcp": "tsx packages/buyer-mcp/src/server.ts",
     "start:dry": "tsx --env-file-if-exists=.env scripts/demo.ts --mode dry",
     "start:live": "tsx --env-file=.env scripts/demo.ts --mode live --no-agent",
-    "build:static": "pnpm --filter @penstock/console build:static"
+    "build:static": "pnpm --filter @penstock/console build:static",
+    "serve:static": "tsx scripts/serve-static.ts",
+    "audit:static": "tsx scripts/audit-static.ts"
   },
   "dependencies": {
     "@penstock/core": "workspace:*",
