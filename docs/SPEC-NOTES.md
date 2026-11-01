@@ -135,7 +135,7 @@ Sources: `https://1click.chaindefuser.com/docs/v0/openapi.yaml` (`info.version: 
 
 Observed live, 2026-11-01:
 - A dry `EXACT_OUTPUT` quote, Arbitrum USDC → 1.000000 NEAR USDC, without a key → HTTP 201: `amountIn 1010224`, `minAmountIn 1000121`, `timeEstimate 25`, `refundFee 5300`. 1Click added `appFees:[{fee:1}]` to the echoed request. The docs say the keyless fee is 0.2%, so Penstock shows fees from `amountInUsd - amountOutUsd`, not from a constant.
-- Dry quote, SOL → 1 NEAR USDC → `amountIn 10602517` lamports, `timeEstimate 20`.
+- Dry quote, SOL → 1 NEAR USDC → `amountIn 10602517` lamports, `timeEstimate 20`. Here 1Click added `appFees:[{fee:20}]` (0.2%), which matches the documented keyless fee. The fee added varies by route.
 - A `recipient` NEAR account that does not exist → HTTP 400 `{"message":"Internal server error"}`. Penstock checks the seller account before it quotes.
 - `confidentiality: "basic"` without auth → HTTP 401 "User authentication is required for confidential intent quotes". The confidential route needs a 1Click JWT.
 
