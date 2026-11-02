@@ -53,3 +53,23 @@ The signed Penstock receipt (ed25519 over the canonical JSON of `body`; it verif
 - Penstock released the API response only after 1Click reported `SUCCESS` for this exact deposit, and its receipt names both chains' transactions.
 
 The API response itself is the example tide service bundled with Penstock (deterministic sample data); the payment around it is real.
+
+## 2. One refund: an under-deposit returned to the payer (2026-11-02)
+
+This case was triggered on purpose to prove the refund path. The payer was quoted for a $0.20 call (`GET /p/tidewater/voyage-plan`, 1Click `minAmountIn` 0.200043 USDC) and deliberately sent only 0.05 USDC. Under `EXACT_OUTPUT`, a deposit below `minAmountIn` is refunded after the quote's deadline. The amount was chosen to be at least three times 1Click's refund fee (0.010008 USDC quoted), so the refund would be worth having, and it stayed under the $1 cap.
+
+| Step | When (UTC) | What | Proof |
+| --- | --- | --- | --- |
+| Deposit (Solana) | 22:56:17 | The payer sent 0.050000 USDC to deposit address `8nEavKXihjS9Vrxtvf1V1fANr91a2crsNHaexGjcnmFY`. Payer USDC −0.050000. | [4FF48hNz…oC279](https://solscan.io/tx/4FF48hNzaJiM6RZHwPPrvn3xeSMgzVXz2LQNu6Ua6zPELoWtthXmCPubUmd2h886KJjDvwMTmjSMeddZ4MpoC279) |
+| 1Click status | 22:56–23:01 | `PENDING_DEPOSIT` → `INCOMPLETE_DEPOSIT` (below the required amount) → `PROCESSING`. The proxy answered every retry with HTTP 402 `settlement_pending` and did not release the API response. | `GET /v0/status?depositAddress=8nEavKXi…nmFY` |
+| Bridge in (NEAR) | 22:57:20 | Omni Bridge finalised the Solana deposit on NEAR. | [EoXBLwgv…KusN8A](https://nearblocks.io/txns/EoXBLwgvhCmxbTazF6aRKxktDtxZiT6ihWmaUeKusN8A) |
+| Bridge out (NEAR) | 23:02:03 | `intents.near` sent the deposit back through Omni Bridge to Solana (bridged USDC burned on NEAR). | [5mjuAEAr…ENyU](https://nearblocks.io/txns/5mjuAEArrxLetnYBLpWn6ekxBtfzntT9ZKVHXYRFENyU) |
+| Refund (Solana) | 23:03:11 | 0.039966 USDC credited to the payer `Cp4TVsDs…YMB3`. | [4howVt2Q…SRxZza](https://solscan.io/tx/4howVt2QYPM47gTnjNsTMp4dkoGfULHHYe2hMZ2Qki5RjtLWMBNRZZqdFFg288XwehcrCB9jPxWC78pAc6SRxZza) |
+| 1Click status | 23:03:26 | `REFUNDED`: deposited 0.050000, refunded 0.039966 USDC, reason `AMOUNT_MORE_THAN_BALANCE`. | same status call |
+| Penstock | 23:03 | HTTP 402 `exact_near_intents_payment_failed`: no API response, no receipt; the refund was booked against the payer. | `data/live-proof` (local record) |
+
+The payer's USDC balance adds up exactly: 4.085051 − 0.050000 + 0.039966 = 4.075017. The refund cost 0.010034 USDC (quoted refund fee 0.010008).
+
+**What this proves**
+- A payment that does not cover the price is never accepted: Penstock kept answering 402 while 1Click reported the deposit as incomplete, and released nothing.
+- 1Click returned the deposit to the payer's own address on the origin chain, minus its refund fee, with no action by the seller or by Penstock. No one but 1Click held the funds in between.

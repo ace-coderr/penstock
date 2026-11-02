@@ -25,7 +25,7 @@ import { HttpOneClick, buildDepositPayload, buildQuotePayload, depositInstructio
 import { assertWithinCap } from "./cap";
 import { readLiveEnv } from "./env";
 import { solanaAddressOf } from "./keys";
-import { SOLANA_USDC_MINT, findIncomingUsdc, solanaLamports, solanaUsdc } from "./rpc";
+import { SOLANA_USDC_MINT, solanaLamports, solanaUsdc, solanaUsdcDelta } from "./rpc";
 import { buildUsdcTransfer, sendAndConfirm } from "./solana";
 
 const SOL = CHAINS.find((c) => c.key === "sol")!;
@@ -188,7 +188,11 @@ async function resume() {
         const body = await res.text();
         const refunded = /refund/i.test(body) || /payment_failed|insufficient_deposit/.test(settle?.errorReason ?? "");
         const status = await new HttpOneClick({ baseUrl: env.oneClickBaseUrl, jwt: env.oneClickJwt || null }).status(s.deposit.payTo).catch(() => null);
-        const refundTx = refunded ? await findIncomingUsdc(env.solanaRpc, env.payerAddress, s.deposit.payTo).catch(() => null) : null;
+        // 1Click lists the refund among the origin-chain transactions; keep the one that credited the payer.
+        let refundTx: string | null = null;
+        for (const t of refunded ? (status?.swapDetails.originChainTxHashes ?? []) : []) {
+          if (t.hash !== s.txHash && (await solanaUsdcDelta(env.solanaRpc, t.hash, env.payerAddress).catch(() => 0n)) > 0n) refundTx = t.hash;
+        }
         const result = { httpStatus: res.status, settle, body: body.slice(0, 2000), oneClickStatus: status, refundTx, finishedAt: new Date().toISOString() };
         save({ ...s, status: refunded ? "refunded" : "failed", result });
         writeFileSync(join(DIR, `proof-${Date.now()}.json`), JSON.stringify({ ...s, status: refunded ? "refunded" : "failed", result }, null, 2));
@@ -196,7 +200,7 @@ async function resume() {
           console.log(`REFUNDED (as intended): HTTP ${res.status}, ${settle?.errorReason ?? ""}
   deposit tx     https://solscan.io/tx/${s.txHash}
   1Click status  ${status?.status ?? "?"}; refunded ${status?.swapDetails.refundedAmount ?? "?"} (${status?.swapDetails.refundReason ?? "?"})
-  refund tx      ${refundTx ? `https://solscan.io/tx/${refundTx}` : "not found yet (check the payer's history)"}
+  refund tx      ${refundTx ? `https://solscan.io/tx/${refundTx}` : "not listed by 1Click yet (it lands after REFUNDED; check the payer's history)"}
   recorded in    data/live-proof/`);
           return;
         }

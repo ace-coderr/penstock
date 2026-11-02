@@ -47,20 +47,12 @@ export async function solanaUsdc(url: string, owner: string): Promise<bigint> {
   return r.value.reduce((a, x) => a + BigInt(x.account.data.parsed.info.tokenAmount.amount), 0n);
 }
 
-/** The most recent transaction that moved USDC from `from`'s token account to `owner`, or null. */
-export async function findIncomingUsdc(url: string, owner: string, from: string): Promise<string | null> {
-  const sigs = await rpc<{ signature: string; err: unknown }[]>(url, "getSignaturesForAddress", [owner, { limit: 25, commitment: "confirmed" }]);
-  for (const s of sigs) {
-    if (s.err) continue;
-    const tx = await rpc<{ meta: { preTokenBalances: TokenBal[]; postTokenBalances: TokenBal[] } } | null>(url, "getTransaction", [s.signature, { encoding: "jsonParsed", maxSupportedTransactionVersion: 0, commitment: "confirmed" }]);
-    if (!tx) continue;
-    const delta = (o: string) => {
-      const bal = (xs: TokenBal[]) => BigInt(xs.find((b) => b.owner === o && b.mint === SOLANA_USDC_MINT)?.uiTokenAmount.amount ?? "0");
-      return bal(tx.meta.postTokenBalances) - bal(tx.meta.preTokenBalances);
-    };
-    if (delta(owner) > 0n && delta(from) < 0n) return s.signature;
-  }
-  return null;
+/** Change in `owner`'s USDC (base units) made by one transaction. */
+export async function solanaUsdcDelta(url: string, signature: string, owner: string): Promise<bigint> {
+  const tx = await rpc<{ meta: { preTokenBalances: TokenBal[]; postTokenBalances: TokenBal[] } } | null>(url, "getTransaction", [signature, { encoding: "jsonParsed", maxSupportedTransactionVersion: 0, commitment: "confirmed" }]);
+  if (!tx) return 0n;
+  const bal = (xs: TokenBal[]) => BigInt(xs.find((b) => b.owner === owner && b.mint === SOLANA_USDC_MINT)?.uiTokenAmount.amount ?? "0");
+  return bal(tx.meta.postTokenBalances) - bal(tx.meta.preTokenBalances);
 }
 
 interface TokenBal { owner: string; mint: string; uiTokenAmount: { amount: string } }
