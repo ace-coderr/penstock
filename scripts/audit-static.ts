@@ -6,6 +6,7 @@
  *   - the only network call sites are same-origin (module preload, /demo-snapshot.json);
  *   - _headers carries the CSP with connect-src 'self'; _redirects rewrites /app routes;
  *   - reduced-motion rules made it into the bundled CSS;
+ *   - share basics: SVG favicon, 1200x630 social card PNG, title, description, Open Graph and Twitter tags;
  *   - every snapshot row is flagged simulated and every hash is a "sim" value.
  */
 import { readdirSync, readFileSync, statSync } from "node:fs";
@@ -71,6 +72,17 @@ const css = assets.filter((f) => f.endsWith(".css")).map(read).join("\n");
 const reduce = (css.match(/prefers-reduced-motion:\s*reduce/g) ?? []).length;
 check(reduce >= 3, "reduced-motion rules are in the bundled CSS", `${reduce} blocks`);
 check(/animation-duration:\s*\.?0?\.001ms\s*!important/.test(css), "reduced motion stops all animations");
+
+const html = read(join(dist, "index.html"));
+const card = readFileSync(join(dist, "social-card.png"));
+const pngSize = card.subarray(0, 8).toString("hex") === "89504e470d0a1a0a" ? [card.readUInt32BE(16), card.readUInt32BE(20)] : [0, 0];
+check(pngSize[0] === 1200 && pngSize[1] === 630, "social card is a 1200x630 PNG", pngSize.join("x"));
+check(html.includes('<link rel="icon" type="image/svg+xml" href="/favicon.svg"') && read(join(dist, "favicon.svg")).startsWith("<svg"), "SVG favicon served from the same origin");
+const meta = ["og:title", "og:description", "og:image", "twitter:card", "twitter:image", "description", "theme-color"];
+const missing = meta.filter((m) => !new RegExp(`(property|name)="${m}" content="[^"]+"`).test(html));
+check(missing.length === 0, "title, description, theme-color, Open Graph and Twitter tags", missing.join(", "));
+const images = [...html.matchAll(/(?:og|twitter):image" content="([^"]+)"/g)].map((m) => m[1]!);
+check(images.every((u) => u.endsWith("/social-card.png") && !u.includes("%")), "card URL points at the same-origin social-card.png", images.join(" | "));
 
 const snap = JSON.parse(read(join(dist, "demo-snapshot.json"))) as { payments: { simulated: boolean; originTx: string | null; destTx: string | null }[]; sessions: { simulated: boolean }[] };
 check(snap.payments.every((p) => p.simulated) && snap.sessions.every((s) => s.simulated), "every snapshot row is flagged simulated", `${snap.payments.length} payments`);

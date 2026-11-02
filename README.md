@@ -207,6 +207,7 @@ not_found_handling = "single-page-application"
 | Root directory | *(leave empty: the repository root)* |
 | Variable | `NODE_VERSION` = `22` |
 | Variable | `PNPM_VERSION` = `9.15.9` |
+| Variable (optional) | `SITE_URL` = the site address, e.g. `https://penstock.<your-subdomain>.workers.dev` |
 
 The build command writes the site to `apps/console/dist`. `npx wrangler deploy` then reads `wrangler.toml` and uploads that directory as the Worker's static assets.
 
@@ -215,7 +216,9 @@ Workers static assets apply the `_headers` and `_redirects` files in that direct
 - `_redirects` rewrites `/app` and `/app/*` to the app shell with 200 proxying.
 - `not_found_handling = "single-page-application"` also serves `index.html` for any other navigation, so refreshing a console route works.
 
-No secrets or environment values other than the two versions above are needed or used.
+The build also writes `favicon.svg` and a 1200x630 `social-card.png` (drawn as SVG and rendered at build time) next to `index.html`, so link previews load from the same origin under the strict CSP. Set `SITE_URL` to make the Open Graph and Twitter image URLs absolute; without it they are root-relative, which some link unfurlers ignore.
+
+No secrets are needed or used: the only build variables are the two versions above and the optional public `SITE_URL`.
 
 ## How a payment works
 
