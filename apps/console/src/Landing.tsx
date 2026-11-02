@@ -2,7 +2,9 @@ import { useEffect, useState, type ReactNode } from "react";
 import { Wordmark } from "./components/Wordmark";
 import { HostedBanner } from "./components/bits";
 import { STATIC_DEMO } from "./api";
-import { CardArt, HeroArt } from "./components/Iso";
+import { CardArt } from "./components/Iso";
+import { HeroStage } from "./components/HeroStage";
+import { PaymentReplay } from "./components/PaymentReplay";
 import { moneyUsd, units } from "./format";
 import { useCountUp, useReveal } from "./motion";
 
@@ -39,6 +41,12 @@ const INSTRUMENTS: { id: "protect" | "chains" | "sessions" | "books"; title: str
   { id: "chains", title: "Accept any chain and token", body: "Agents pay from Base, Solana, Ethereum, Arbitrum, Bitcoin and more. NEAR Intents routes the swap; you receive USDC in one NEAR account.", href: "/app#/payments", cta: "Payments" },
   { id: "sessions", title: "Sessions for micro-calls", body: "Bridges have minimums, so a $0.004 call can't cross chains alone. One payment opens a capped session; calls are metered; the rest is refunded.", href: "/app#/sessions", cta: "Sessions" },
   { id: "books", title: "Books that close", body: "Every payment carries a signed receipt. Refunds, route fees and resale margins land in one CSV an accountant can read without you.", href: "/app#/payments", cta: "Export CSV" },
+];
+
+const WORKS: { name: string; cls: string; role: string; code: string }[] = [
+  { name: "NEAR Intents", cls: "wm-intents", role: "Cross-chain settlement through the 1Click API", code: "1Click API v0" },
+  { name: "x402", cls: "wm-x402", role: "HTTP 402 payments for any API", code: "x402 v2" },
+  { name: "MCP", cls: "wm-mcp", role: "Paid tools that agents can call", code: "_meta transport" },
 ];
 
 const CHECKS: { title: string; body: string; code: string }[] = [
@@ -139,17 +147,21 @@ export function Landing() {
               <p className="l-note mono rise" style={{ "--i": 4 } as React.CSSProperties}>{STATIC_DEMO ? "This hosted demo runs entirely in your browser on simulated data. Run it locally for the real flow." : "The demo runs locally with simulated payments: no keys, no funds, no network."}</p>
             </div>
             <figure className="l-hero-art rise" style={{ "--i": 2 } as React.CSSProperties}>
-              <HeroArt />
+              <HeroStage />
               <figcaption className="mono"><span><i aria-hidden="true" />6 chains in</span><span>1 gate</span><span>1 account out · USDC on NEAR</span></figcaption>
             </figure>
           </section>
 
-          <section className="l-works" aria-label="Works with">
-            <span className="l-works-label mono">Works with</span>
+          <section className="l-works" aria-labelledby="works-h">
+            <h2 id="works-h" className="l-works-label mono">Works with</h2>
             <ul>
-              <li><span className="wm wm-intents">NEAR Intents</span><span className="faint">1Click cross-chain settlement</span></li>
-              <li><span className="wm wm-x402">x402</span><span className="faint">HTTP 402 payments, v2</span></li>
-              <li><span className="wm wm-mcp">MCP</span><span className="faint">paid tools for agents</span></li>
+              {WORKS.map((w) => (
+                <li key={w.name}>
+                  <span className={`wm ${w.cls}`}>{w.name}</span>
+                  <span className="l-works-role">{w.role}</span>
+                  <span className="chip">{w.code}</span>
+                </li>
+              ))}
             </ul>
           </section>
 
@@ -171,12 +183,11 @@ export function Landing() {
             <Proof />
           </Section>
 
+          <Section id="payment" eyebrow="How a payment works" title="One request, one 402, one payment from anywhere" intro="The agent never needs USDC on NEAR. It pays from the chain and token it already holds; NEAR Intents delivers USDC to the seller, and the retried request returns 200 with a signed receipt.">
+            <PaymentReplay />
+          </Section>
+
           <Section id="how" eyebrow="How it works" title="Every payment runs the same checklist" intro="An agent calls your endpoint and gets HTTP 402 with every chain you accept. It pays from whatever it holds. You receive USDC on NEAR and the call goes through, but only after these checks pass.">
-            <ol className="steps" aria-label="Payment flow">
-              <li><span className="mono">01</span><span>Agent calls, gets <code className="inline">402</code> listing every accepted chain</span></li>
-              <li><span className="mono">02</span><span>Agent pays from what it holds, on its own chain</span></li>
-              <li><span className="mono">03</span><span>USDC lands in your NEAR account; the call is forwarded</span></li>
-            </ol>
             <ul className="checklist">
               {CHECKS.map((c) => (
                 <li key={c.title}>

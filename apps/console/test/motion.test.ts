@@ -61,7 +61,8 @@ describe("motion stays fast and compositor-friendly", () => {
   });
 
   it("times one-shot animations with tokens and keeps them at or under 600ms", () => {
-    const decls = [...allCss.matchAll(/animation:\s*([^;]+);/g)].map((m) => m[1]!);
+    // "animation: none" switches an animation off (reduced motion), so it needs no timing.
+    const decls = [...allCss.matchAll(/animation:\s*([^;]+);/g)].map((m) => m[1]!).filter((d) => d.trim() !== "none");
     for (const d of decls) {
       if (/infinite/.test(d)) expect(d, d).toMatch(/var\(--loop-/);
       else expect(d, d).toMatch(/var\(--dur-/);

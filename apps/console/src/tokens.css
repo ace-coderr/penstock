@@ -104,6 +104,9 @@
   --loop-flow: 3.2s;
   --loop-ping: 2.4s;
   --loop-shimmer: 1.3s;
+  --loop-drift: 6s;
+  --loop-breathe: 5.5s;
+  --loop-blink: 1s;
 }
 
 /* Reduced motion: every duration and offset collapses to zero (base.css also stops any animation). */
