@@ -92,10 +92,6 @@
   .checklist li { grid-template-columns: 24px 1fr; }
   .checklist .chip { grid-column: 2; justify-self: start; }
   .l-works ul { grid-template-columns: 1fr; }
-  .replay-steps { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .term-line { grid-template-columns: 1fr; gap: 0; }
-  .term-dir { display: none; }
-  .term-body { min-height: 24em; }
 }
 
 /* ── hero stage: layered panels, glow, drifting chips, pointer parallax ── */
@@ -109,7 +105,7 @@
 .hs-art { position: relative; }
 .hs-art svg { width: 100%; height: auto; display: block; }
 .hs-chip { position: absolute; z-index: 2; pointer-events: none; }
-.hs-chip-in { display: inline-block; padding: 6px 10px; border: 1px solid var(--line-strong); border-radius: 999px; background: color-mix(in srgb, var(--surface-2) 82%, transparent); backdrop-filter: blur(6px); font-size: var(--fs-2xs); letter-spacing: 0.03em; color: var(--text); box-shadow: 0 10px 24px -14px rgba(0, 0, 0, 0.8); animation: drift var(--loop-drift) var(--ease-in-out) infinite alternate; animation-delay: calc(var(--i, 0) * -1.5s); }
+.hs-chip-in { display: inline-block; white-space: nowrap; padding: 6px 10px; border: 1px solid var(--line-strong); border-radius: 999px; background: color-mix(in srgb, var(--surface-2) 82%, transparent); backdrop-filter: blur(6px); font-size: var(--fs-2xs); letter-spacing: 0.03em; color: var(--text); box-shadow: 0 10px 24px -14px rgba(0, 0, 0, 0.8); animation: drift var(--loop-drift) var(--ease-in-out) infinite alternate; animation-delay: calc(var(--i, 0) * -1.5s); }
 .hs-chip-accent .hs-chip-in { border-color: var(--accent-line); color: var(--accent); background: color-mix(in srgb, var(--accent) 10%, var(--surface-1)); }
 @keyframes drift { from { transform: translate3d(0, -4px, 0); } to { transform: translate3d(0, 5px, 0); } }
 @keyframes breathe { from { opacity: 0.45; } to { opacity: 0.8; } }
@@ -139,6 +135,15 @@
 .term-ok .term-text { color: var(--accent); }
 .term-cursor { width: 8px; height: 1.1em; margin-top: 6px; background: var(--text-3); animation: blink var(--loop-blink) steps(1) infinite; }
 @keyframes blink { 50% { opacity: 0; } }
+
+@media (max-width: 680px) {
+  .replay-steps { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .term-line { grid-template-columns: 1fr; gap: 0; }
+  .term-dir { display: none; }
+  .term-body { min-height: 24em; }
+  .term-line + .term-line { margin-top: 10px; }
+  .term-bar { flex-wrap: wrap; }
+}
 
 @media (prefers-reduced-motion: reduce) {
   .hs-layer { transform: none; transition: none; }

@@ -1,0 +1,10 @@
+/* Loaded last so these minimums win over component rules. */
+/* Touch: on narrow screens and coarse pointers every control is at least 44px tall (WCAG 2.5.5).
+   Inline links inside running text keep their line, with padding to widen the hit area. */
+@media (max-width: 900px), (pointer: coarse) {
+  .btn, .btn.l-top-cta, .seg button, .field input, .field select, .nav a, .term-replay { min-height: 44px; }
+  .mark, .card-link, .row-btn, .l-foot nav a, .l-links a, .skip, .aside a { display: inline-flex; align-items: center; min-height: 44px; }
+  .l-foot nav { gap: 0; }
+  .hosted a { display: inline-block; padding: 14px 0; margin: -14px 0; }
+  .pill input { min-height: 44px; }
+}
