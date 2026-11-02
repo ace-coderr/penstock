@@ -9,6 +9,10 @@
  *                                           redeems it at the proxy and records the proof.
  *   pnpm live:pay resume                     continues a sent payment (slow 1Click, restart).
  *
+ * Refund test: `send --confirm <deposit> --refund-test-usdc N` deliberately sends N, which must be
+ * below the quote's minAmountIn (so 1Click refunds it after the deadline) and at least three times
+ * 1Click's refundFee (so the refund is worth having). It is still capped by LIVE_MAX_USD.
+ *
  * Double-send protection: the state file is written as "sending" before the transfer is broadcast,
  * and `send` refuses any state other than "planned". A sent payment is only ever resumed.
  * The payer key is read from .env, used to sign, and never printed or written anywhere.
@@ -21,7 +25,7 @@ import { HttpOneClick, buildDepositPayload, buildQuotePayload, depositInstructio
 import { assertWithinCap } from "./cap";
 import { readLiveEnv } from "./env";
 import { solanaAddressOf } from "./keys";
-import { SOLANA_USDC_MINT, solanaLamports, solanaUsdc } from "./rpc";
+import { SOLANA_USDC_MINT, findIncomingUsdc, solanaLamports, solanaUsdc } from "./rpc";
 import { buildUsdcTransfer, sendAndConfirm } from "./solana";
 
 const SOL = CHAINS.find((c) => c.key === "sol")!;
@@ -38,6 +42,8 @@ interface State {
   deposit: DepositInstructions;
   quotedUsd: number;
   txHash?: string;
+  refundTest?: boolean;
+  sentAmount?: string;
   sentAt?: string;
   result?: unknown;
 }
@@ -108,7 +114,19 @@ async function send(confirm: string | undefined) {
   if (confirm !== s.deposit.payTo) die(`refusing to send: --confirm must be the deposit address ${s.deposit.payTo}`);
   if (Date.parse(s.deposit.refundDeadline) - Date.now() < 90_000) die("the quote expires in under 90 s: plan again");
   assertWithinCap(s.quotedUsd, env.maxUsd);
-  const amount = BigInt(s.deposit.amount);
+  let amount = BigInt(s.deposit.amount);
+  const refundTest = rest.includes("--refund-test-usdc");
+  if (refundTest) {
+    const want = BigInt(Math.round(Number(rest[rest.indexOf("--refund-test-usdc") + 1]) * 1e6));
+    const q = (await new HttpOneClick({ baseUrl: env.oneClickBaseUrl, jwt: env.oneClickJwt || null }).status(s.deposit.payTo)).quoteResponse.quote;
+    const min = BigInt(q.minAmountIn);
+    const fee = BigInt(q.refundFee ?? "0");
+    if (!(want > 0n) || want >= min) die(`refund test: ${usdc(want)} must be below minAmountIn ${usdc(min)}`);
+    if (want < fee * 3n) die(`refund test: ${usdc(want)} must be at least 3x the refund fee ${usdc(fee)}`);
+    assertWithinCap(Number(usdc(want)), env.maxUsd);
+    console.log(`refund test: sending ${usdc(want)} USDC, below minAmountIn ${usdc(min)}; 1Click should refund it minus refundFee ${usdc(fee)}`);
+    amount = want;
+  }
   // The human approves a bound; a fresh quote above it is refused.
   const maxArg = rest[rest.indexOf("--max-usdc") + 1];
   if (rest.includes("--max-usdc")) {
@@ -121,7 +139,7 @@ async function send(confirm: string | undefined) {
 
   const tx = await buildUsdcTransfer({ rpcUrl: env.solanaRpc, payerSecret: env.payerSecret, to: s.deposit.payTo, amount });
   // Recorded before broadcasting: if anything below crashes, `send` will refuse and only `resume` runs.
-  save({ ...s, status: "sending", txHash: tx.signature, sentAt: new Date().toISOString() });
+  save({ ...s, status: "sending", txHash: tx.signature, sentAt: new Date().toISOString(), refundTest, sentAmount: amount.toString() });
   console.log(`sending ${usdc(amount)} USDC: https://solscan.io/tx/${tx.signature}`);
   const r = await sendAndConfirm(env.solanaRpc, tx.raw, tx.signature, tx.blockhash, tx.lastValidBlockHeight).catch((e: Error) => {
     console.error(`  confirmation unclear: ${e.message.slice(0, 200)} (check the explorer; then \`pnpm live:pay resume\`)`);
@@ -131,7 +149,7 @@ async function send(confirm: string | undefined) {
     save({ ...s, status: "failed", txHash: tx.signature, result: { solana: "transaction failed" } });
     die("the Solana transaction failed on chain (no USDC moved)");
   }
-  save({ ...s, status: "sent", txHash: tx.signature, sentAt: new Date().toISOString() });
+  save({ ...s, status: "sent", txHash: tx.signature, sentAt: new Date().toISOString(), refundTest, sentAmount: amount.toString() });
   console.log(`  ${r}`);
   await resume();
 }
@@ -169,7 +187,19 @@ async function resume() {
       else {
         const body = await res.text();
         const refunded = /refund/i.test(body) || /payment_failed|insufficient_deposit/.test(settle?.errorReason ?? "");
-        save({ ...s, status: refunded ? "refunded" : "failed", result: { httpStatus: res.status, settle, body: body.slice(0, 2000) } });
+        const status = await new HttpOneClick({ baseUrl: env.oneClickBaseUrl, jwt: env.oneClickJwt || null }).status(s.deposit.payTo).catch(() => null);
+        const refundTx = refunded ? await findIncomingUsdc(env.solanaRpc, env.payerAddress, s.deposit.payTo).catch(() => null) : null;
+        const result = { httpStatus: res.status, settle, body: body.slice(0, 2000), oneClickStatus: status, refundTx, finishedAt: new Date().toISOString() };
+        save({ ...s, status: refunded ? "refunded" : "failed", result });
+        writeFileSync(join(DIR, `proof-${Date.now()}.json`), JSON.stringify({ ...s, status: refunded ? "refunded" : "failed", result }, null, 2));
+        if (refunded && s.refundTest) {
+          console.log(`REFUNDED (as intended): HTTP ${res.status}, ${settle?.errorReason ?? ""}
+  deposit tx     https://solscan.io/tx/${s.txHash}
+  1Click status  ${status?.status ?? "?"}; refunded ${status?.swapDetails.refundedAmount ?? "?"} (${status?.swapDetails.refundReason ?? "?"})
+  refund tx      ${refundTx ? `https://solscan.io/tx/${refundTx}` : "not found yet (check the payer's history)"}
+  recorded in    data/live-proof/`);
+          return;
+        }
         die(`proxy answered ${res.status}: ${settle?.errorReason ?? body.slice(0, 300)}`);
       }
     }
