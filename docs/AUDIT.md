@@ -69,5 +69,5 @@ Tests: `pnpm test` runs 122 tests in 22 files. The hosted static build is checke
 - **Hosted demo CSP needs Cloudflare:** the CSP lives in `_headers`, which Cloudflare Workers static assets apply. Other static hosts need equivalent headers configured.
 - **Hosted demo receipt times:** build-time receipts keep their build-time timestamps, while the snapshot's rows are shifted to look recent. The receipt drawer says so.
 - **Demo and dry are not paid services:** anyone who can reach them can make simulated deposits. They bind to loopback by default; do not expose them.
-- **Live end to end:** live mode has not been run against mainnet with funds. Dry mode was run against the real 1Click API.
+- **Live end to end:** run once on mainnet (Solana USDC → NEAR USDC, docs/PROOF.md). Other origin chains were checked with real dry quotes, not real payments.
 - **Shielded scope:** shielded mode hides the payer's origin and route only. The USDC delivery to the seller and the seller's revenue stay public. The Aurora route cannot pay until 1Click supports such chains.

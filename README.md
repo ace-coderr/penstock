@@ -158,6 +158,10 @@ You need Node 22.13+ (Node 24 recommended) and pnpm 9 (`corepack enable` provide
     ```
     `--pay` with `PENSTOCK_NEAR_ACCOUNT` and `PENSTOCK_NEAR_KEY` pays one call in USDC on NEAR. It refuses anything above $0.05.
 
+## Real transactions
+
+One real x402 payment, on mainnet, on 2026-11-02: an API call priced at $0.01 was paid with **0.014949 USDC on Solana** ([deposit](https://solscan.io/tx/56542cnAqGL58AzFZxoWEzESCNrAe8uzGdu2bT6JUKPyCwVypwQFMYEMk3qGGGJBeKUeHMqrqAg21NZxsVDqPHSg)) and the seller `acedevv.near` received **0.01 USDC on NEAR** ([delivery](https://nearblocks.io/txns/Ggb5B734pfQVDefs12eJ3xsE6sLbeRjcN3j56a7Ac3MA)) through NEAR Intents (1Click). The same delivery registered the seller's USDC storage, so the seller needed no NEAR and no key. The call returned HTTP 200 with a signed Penstock receipt. Every hash, amount and step is in [docs/PROOF.md](docs/PROOF.md).
+
 ## Hosted demo (static, Cloudflare Workers static assets)
 
 There is also a fully static build of the landing page and the console, for hosting. It makes **no server calls**:
@@ -347,7 +351,7 @@ The audit and its results are in [docs/AUDIT.md](docs/AUDIT.md). Main measures:
 - **The 402 header is about 10 KB,** because it lists 19 origin entries. That is fine for Node and most clients, but reverse proxies with 4–8 KB header buffers need a larger limit. The same object is also in the response body.
 - **The facilitator and the ledger are single-node.** Claims are exactly-once within one SQLite ledger, so a multi-instance deployment needs a shared database.
 - **Live deposits on origin chains need the agent's own wallet.** The MCP server returns deposit instructions and `penstock_resume` finishes the payment. No origin-chain wallets are bundled.
-- **Live mode has not been run end to end.** It was not run against mainnet with funds during development. Dry mode was run against the real 1Click API.
+- **Live mode has been run once, on one route.** One real payment, Solana USDC to NEAR USDC through 1Click, is recorded in [docs/PROOF.md](docs/PROOF.md). Other chains have been exercised with real dry quotes only.
 
 ## Credits and sources
 
