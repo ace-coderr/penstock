@@ -1,6 +1,6 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import { join } from "node:path";
-import { loadConfig, log, ReceiptSigner, seedStore, simulationScope, Store, type PaymentMethodHandler, type PenstockConfig } from "@penstock/core";
+import { HOME_SELLER_ID, loadConfig, log, ReceiptSigner, seedStore, simulationScope, Store, type PaymentMethodHandler, type PenstockConfig } from "@penstock/core";
 import { createIntentsStack, type IntentsStack, type OneClick } from "@penstock/intents-adapter";
 import { clientAddress, HttpError, readJson, sendJson, sendRaw } from "./http";
 import { ExactNearMethod, httpExactFacilitator, simulatedExactFacilitator, type ExactFacilitator } from "./methods/exact-near";
@@ -40,10 +40,15 @@ export interface Proxy {
 const SESSION_ROUTE = /^\/s\/([a-z0-9][a-z0-9-]{0,39})\/([a-z0-9][a-z0-9-]{0,59})\/(open|status|close)(?:\/([0-9]{1,12}))?$/;
 const PAID_ROUTE = /^\/p\/([a-z0-9][a-z0-9-]{0,39})\/([a-z0-9][a-z0-9-]{0,59})(\/[^?#]*)?$/;
 
-function buildExact(config: PenstockConfig, opts: ProxyOptions): ExactNearMethod {
+function buildExact(config: PenstockConfig, opts: ProxyOptions): ExactNearMethod | null {
   if (opts.exactFacilitator) return new ExactNearMethod(opts.exactFacilitator, config.mode !== "live");
   if (config.mode === "live") {
-    if (!config.facilitatorUrl) throw new Error("FACILITATOR_URL is required in live mode for the exact NEAR scheme");
+    // The exact scheme on NEAR needs a facilitator (relayer). Without one, live mode offers only the
+    // cross-chain near-intents method instead of refusing to start.
+    if (!config.facilitatorUrl) {
+      log("warn", "FACILITATOR_URL not set: live mode offers near-intents only (no exact USDC-on-NEAR payments)");
+      return null;
+    }
     return new ExactNearMethod(httpExactFacilitator(config.facilitatorUrl, config.facilitatorApiKey), false);
   }
   return new ExactNearMethod(simulatedExactFacilitator(), true);
@@ -54,6 +59,14 @@ export function createProxy(opts: ProxyOptions = {}): Proxy {
   const store = opts.store ?? new Store(join(config.dataDir, `penstock-${config.mode}.sqlite`));
   if (config.mode !== "live") {
     seedStore(store, { origin: config.publicUrl, upstream: opts.upstreamBase ?? "http://127.0.0.1:4030", homeNearAccount: config.sellerNearAccount });
+  } else {
+    // Live: one real seller paid to SELLER_NEAR_ACCOUNT, no simulated history. Endpoints are added
+    // in the console (05 Endpoints) or with POST /api/admin/endpoints.
+    const existing = store.getSeller(HOME_SELLER_ID);
+    store.upsertSeller({
+      id: HOME_SELLER_ID, name: existing?.name ?? "Tidewater Data", nearAccount: config.sellerNearAccount,
+      description: existing?.description ?? "Tide tables, marine conditions and harbour briefings for routing agents.", origin: config.publicUrl, simulated: false,
+    });
   }
   const accounts = new AccountChecker(config.mode, store);
   const shielded = new ShieldedRoutes({ mode: config.mode, confidentialIntents: config.shieldedConfidentialIntents, oneClickJwt: config.oneClickJwt, auroraRpcUrl: config.shieldedAuroraRpcUrl });
@@ -68,7 +81,7 @@ export function createProxy(opts: ProxyOptions = {}): Proxy {
   const ctx: ProxyContext = {
     config,
     store,
-    methods: opts.methods ?? [buildExact(config, opts), intents.method],
+    methods: opts.methods ?? ([buildExact(config, opts), intents.method] as (PaymentMethodHandler | null)[]).filter((m): m is PaymentMethodHandler => m !== null),
     receipts: opts.receipts ?? (opts.store ? ReceiptSigner.ephemeral() : ReceiptSigner.fromDir(config.dataDir)),
     limiter: new RateLimiter(DEFAULT_LIMITS),
     allowPrivateUpstreams: config.allowPrivateUpstreams,

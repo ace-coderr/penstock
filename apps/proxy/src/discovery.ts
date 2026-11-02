@@ -19,7 +19,7 @@ export function discoveryDocument(ctx: ProxyContext, sellerId?: string) {
     generatedAt: new Date(ctx.now()).toISOString(),
     destination: { network: DESTINATION.network, asset: DESTINATION.asset, symbol: DESTINATION.symbol, description: "Sellers receive USDC on NEAR" },
     paymentMethods: [
-      { id: "exact-near", scheme: "exact", network: DESTINATION.network, spec: "x402 exact on NEAR (@x402/near)", note: "Pay USDC on NEAR directly to the seller with a signed NEP-366 delegate action." },
+      ...(ctx.methods.some((m) => m.id === "exact-near") ? [{ id: "exact-near", scheme: "exact", network: DESTINATION.network, spec: "x402 exact on NEAR (@x402/near)", note: "Pay USDC on NEAR directly to the seller with a signed NEP-366 delegate action." }] : []),
       { id: "near-intents", scheme: "exact", assetTransferMethod: "near-intents", spec: NEAR_INTENTS_SPEC_VERSION, specSource: NEAR_INTENTS_SPEC_SOURCE, settlement: { api: "1Click Swap API", version: ONECLICK_API_VERSION, docs: ONECLICK_API_DOCS }, note: "Pay any listed asset on any listed chain; NEAR Intents (1Click) delivers USDC to the seller." },
     ],
     acceptedOrigins: CHAINS.map((c) => ({ chain: c.key, network: c.caip2, label: c.label, assets: c.assets.map((a) => ({ symbol: a.symbol, asset: a.x402Asset, decimals: a.decimals })) })),

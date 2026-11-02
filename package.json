@@ -26,7 +26,8 @@
     "build:static": "pnpm --filter @penstock/console build:static",
     "serve:static": "tsx scripts/serve-static.ts",
     "audit:static": "tsx scripts/audit-static.ts",
-    "live:check": "tsx --env-file-if-exists=.env packages/live/src/check.ts"
+    "live:check": "tsx --env-file-if-exists=.env packages/live/src/check.ts",
+    "live:pay": "tsx --env-file-if-exists=.env packages/live/src/pay.ts"
   },
   "dependencies": {
     "@penstock/core": "workspace:*",

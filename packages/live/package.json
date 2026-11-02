@@ -9,6 +9,9 @@
   },
   "dependencies": {
     "@penstock/core": "workspace:*",
-    "@penstock/intents-adapter": "workspace:*"
+    "@penstock/intents-adapter": "workspace:*",
+    "@solana/web3.js": "1.98.4",
+    "@solana/spl-token": "0.4.14",
+    "@x402/core": "2.29.0"
   }
 }
