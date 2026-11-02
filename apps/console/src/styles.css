@@ -62,7 +62,8 @@ main.console { padding: var(--s-6) 0 var(--s-8); }
 .flow-wrap svg { width: 100%; height: auto; }
 .flow-line { fill: none; stroke: var(--accent); stroke-linecap: round; }
 .flow-label { font: 400 11px var(--font-mono); fill: var(--text-2); }
-.flow-tag { font: 500 11px var(--font-mono); letter-spacing: 0.06em; fill: var(--text); }
+.flow-tag { font: 500 13px var(--font-sans); fill: var(--text); }
+.flow-code { font: 500 9px var(--font-mono); letter-spacing: 0.06em; fill: var(--text-2); }
 .flow-amt { font: 400 12px var(--font-mono); fill: var(--text); }
 .flow-sink { fill: var(--bg); stroke: var(--accent); }
 .flow-sink-tag { font: 500 11px var(--font-mono); letter-spacing: 0.06em; fill: var(--accent); }
@@ -92,7 +93,9 @@ td.wrap { white-space: normal; min-width: 240px; }
 .row-btn { background: none; border: 0; padding: 0; color: var(--accent); cursor: pointer; font: 400 var(--fs-sm) var(--font-mono); text-decoration: underline; text-decoration-color: var(--accent-line); text-underline-offset: 3px; }
 .row-btn:hover { color: var(--accent-hover); }
 .chain { display: inline-flex; align-items: center; gap: var(--s-2); }
-.chain b { font: 500 var(--fs-2xs) / 1 var(--font-mono); letter-spacing: 0.04em; border: var(--border-strong); border-radius: var(--radius-sm); padding: 3px 5px; color: var(--text); background: var(--surface-2); }
+.chain-name { color: var(--text); white-space: nowrap; }
+.chain-code { font: 500 var(--fs-2xs) / 1 var(--font-mono); letter-spacing: 0.04em; border: var(--border-strong); border-radius: var(--radius-sm); padding: 2px 4px; color: var(--text-2); background: var(--surface-2); }
+@media (max-width: 600px) { .chain-code { display: none; } }
 .st { display: inline-block; font: 500 10px / 1 var(--font-mono); letter-spacing: 0.06em; text-transform: uppercase; padding: 4px 7px; border-radius: var(--radius-pill); border: var(--border-strong); color: var(--text-2); }
 .st-settled, .st-closed, .st-sent, .st-enabled { color: var(--ok); border-color: color-mix(in srgb, var(--ok) 40%, transparent); }
 .st-refunded, .st-failed { color: var(--bad); border-color: var(--bad-line); background: var(--bad-wash); }

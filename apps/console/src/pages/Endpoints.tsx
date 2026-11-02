@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from "react";
 import { api, ApiError, STATIC_DEMO, useApi, type AccountCheck, type EndpointRow, type Shielded } from "../api";
-import { Empty, ErrorState, Loading, PageHead, Section } from "../components/bits";
-import { usdc } from "../format";
+import { Empty, ErrorState, Loading, Money, PageHead, Section } from "../components/bits";
+import { money } from "../format";
 
 function Protect({ onDone }: { onDone: () => void }) {
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
@@ -126,11 +126,11 @@ export function Endpoints({ account }: { account: AccountCheck }) {
                   <tr key={e.id}>
                     <td><span className="mono">{e.slug}</span><div className="faint mono" style={{ fontSize: 12 }}>{e.url}</div></td>
                     <td className="mono muted">{e.kind}{e.resaleOf.length ? " · resale" : ""}</td>
-                    <td className="num r">{usdc(e.priceUsdc)}</td>
+                    <td className="num r"><Money v={e.priceUsdc} kind="micro" /></td>
                     <td className="mono muted hide-sm">{e.upstreamHost}</td>
                     <td className="mono">{e.sessionsEnabled ? "on" : "—"}</td>
                     <td className="num r">{e.calls}</td>
-                    <td className="num r">{e.marginPerCallUsdc ? usdc(e.marginPerCallUsdc) : "—"}{e.resaleOf.length > 0 && e.marginPerCallUsdc && <div className="faint" style={{ fontSize: 12 }}>after {usdc(String(BigInt(e.upstreamCostUsdc) / BigInt(Math.max(1, e.calls))))} upstream</div>}</td>
+                    <td className="num r">{e.marginPerCallUsdc ? <Money v={e.marginPerCallUsdc} kind="micro" /> : "—"}{e.resaleOf.length > 0 && e.marginPerCallUsdc && <div className="faint" style={{ fontSize: 12 }}>after {money(BigInt(e.upstreamCostUsdc) / BigInt(Math.max(1, e.calls)), "micro")} upstream</div>}</td>
                   </tr>
                 ))}
               </tbody>

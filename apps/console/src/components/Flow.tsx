@@ -1,5 +1,5 @@
 import type { ChainRow } from "../api";
-import { usdc } from "../format";
+import { money } from "../format";
 import { useMotionAllowed } from "../motion";
 
 /**
@@ -19,7 +19,7 @@ export function Flow({ rows, account, simulated }: { rows: ChainRow[]; account: 
     <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-labelledby="flow-title flow-desc">
       <title id="flow-title">Where the money came from</title>
       <desc id="flow-desc">
-        {rows.map((r) => `${r.label}: ${usdc(r.receivedUsdc, 2)} from ${r.count} payments`).join("; ")}. All delivered as USDC to {account}.
+        {rows.map((r) => `${r.label}: ${money(r.receivedUsdc)} from ${r.count} payments`).join("; ")}. All delivered as USDC to {account}.
       </desc>
       {rows.map((r, i) => {
         const y = 24 + i * rowH + rowH / 2;
@@ -29,9 +29,9 @@ export function Flow({ rows, account, simulated }: { rows: ChainRow[]; account: 
         return (
           <g key={r.chain}>
             <rect x={8} y={y - 11} width={2} height={22} className="flow-tick" />
-            <text x={20} y={y - 1} className="flow-tag">{r.tag}</text>
+            <text x={20} y={y - 1} className="flow-tag">{r.label}{r.label !== r.label.toUpperCase() && <tspan className="flow-code" dx={6}>{r.tag}</tspan>}</text>
             <text x={20} y={y + 12} className="flow-label">{r.count} pay{r.refunded ? ` · ${r.refunded} ref` : ""}</text>
-            <text x={startX - 10} y={y + 4} className="flow-amt" textAnchor="end">{usdc(r.receivedUsdc, 2)}</text>
+            <text x={startX - 10} y={y + 4} className="flow-amt" textAnchor="end">{money(r.receivedUsdc)}</text>
             <path d={d} className="flow-line" strokeWidth={w} strokeOpacity={0.25 + Math.min(0.6, share * 1.5)} />
             {pulses && (
               <circle r={Math.max(1.6, Math.min(3, w / 4))} className="flow-pulse-dot">
@@ -63,8 +63,8 @@ export function Bars({ daily }: { daily: { day: string; receivedUsdc: string; co
             role="listitem"
             tabIndex={0}
             className="bar"
-            title={`${d.day}: ${usdc(d.receivedUsdc)} from ${d.count} payments`}
-            aria-label={`${d.day}: ${usdc(d.receivedUsdc)} from ${d.count} payments`}
+            title={`${d.day}: ${money(d.receivedUsdc)} from ${d.count} payments`}
+            aria-label={`${d.day}: ${money(d.receivedUsdc)} from ${d.count} payments`}
           />
         ))}
       </div>

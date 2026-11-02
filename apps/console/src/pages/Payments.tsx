@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { downloadCsv, exportUrl, STATIC_DEMO, useApi, type Payment, type Receipt } from "../api";
-import { Chain, Drawer, Empty, ErrorState, Loading, PageHead, Section, Sim, Status } from "../components/bits";
-import { CHAIN_META, explorerFor, isSimHash, originAmount, short, usd, usdc, when } from "../format";
+import { Chain, Drawer, Empty, ErrorState, Loading, Money, PageHead, Section, Sim, Status } from "../components/bits";
+import { CHAIN_META, explorerFor, isSimHash, originAmount, short, money, moneyUsd, when } from "../format";
 import { useNewIds } from "../motion";
 
 const PAGE = 25;
@@ -28,7 +28,7 @@ function ReceiptView({ id, onClose }: { id: string; onClose: () => void }) {
             <div className="receipt-head">
               <div>
                 <div className="total-label">{p.status === "settled" ? "You received" : p.status === "refunded" ? "Refunded to the payer" : "Payment"}</div>
-                <div className="receipt-amount">{p.status === "settled" ? usdc(p.amountOut, 6) : originAmount(p.originChain, p.originSymbol, p.refundedAmount ?? p.amountIn)}<small>{p.status === "settled" ? "USDC" : ""}</small></div>
+                <div className="receipt-amount">{p.status === "settled" ? <Money v={p.amountOut} kind="micro" /> : originAmount(p.originChain, p.originSymbol, p.refundedAmount ?? p.amountIn)}<small>{p.status === "settled" ? "USDC" : ""}</small></div>
               </div>
               <Status value={p.status} />
             </div>
@@ -38,10 +38,10 @@ function ReceiptView({ id, onClose }: { id: string; onClose: () => void }) {
               <dt>Time</dt><dd>{when(p.ts)}</dd>
               <dt>Endpoint</dt><dd>{p.endpointId}</dd>
               <dt>Method</dt><dd>{p.method === "near-intents" ? "near-intents (any chain → USDC on NEAR)" : p.method === "exact-near" ? "exact on NEAR (direct USDC)" : p.method}</dd>
-              <dt>You received</dt><dd>{usdc(p.amountOut, 6)} USDC</dd>
-              <dt>Buyer paid</dt><dd>{originAmount(p.originChain, p.originSymbol, p.amountIn)} on {CHAIN_META[p.originChain]?.label ?? p.originChain} (≈ {usd(p.amountInUsd)})</dd>
-              <dt>Route fee</dt><dd>{usd(p.feeUsd, 6)} <span className="muted">paid by the buyer</span></dd>
-              {p.upstreamCost !== "0" && <><dt>Upstream cost</dt><dd>{usdc(p.upstreamCost, 6)} (resale)</dd></>}
+              <dt>You received</dt><dd><Money v={p.amountOut} kind="micro" /> USDC</dd>
+              <dt>Buyer paid</dt><dd>{originAmount(p.originChain, p.originSymbol, p.amountIn)} on {CHAIN_META[p.originChain]?.label ?? p.originChain} (≈ {moneyUsd(p.amountInUsd, "micro")})</dd>
+              <dt>Route fee</dt><dd><span title={`$${p.feeUsd.toFixed(6)}`}>{moneyUsd(p.feeUsd, "micro")}</span> <span className="muted">paid by the buyer</span></dd>
+              {p.upstreamCost !== "0" && <><dt>Upstream cost</dt><dd><Money v={p.upstreamCost} kind="micro" /> (resale)</dd></>}
               <dt>Payer</dt><dd>{p.payer}</dd>
               {p.depositAddress && <><dt>Deposit address</dt><dd>{p.depositAddress}</dd></>}
               <dt>Origin tx</dt><dd><Hash chain={p.originChain} value={p.originTx} /></dd>
@@ -52,12 +52,12 @@ function ReceiptView({ id, onClose }: { id: string; onClose: () => void }) {
             </dl>
             {upstreamReceipts.length > 0 && (
               <div className="sig">
-                <span className="muted">Resale: bought from {upstreamReceipts.length} upstream sellers for {usdc(p.upstreamCost, 6)}; margin {usdc(String(BigInt(p.amountOut) - BigInt(p.upstreamCost)), 6)}</span>
+                <span className="muted">Resale: bought from {upstreamReceipts.length} upstream sellers for {money(p.upstreamCost, "micro")}; margin {money(BigInt(p.amountOut) - BigInt(p.upstreamCost), "micro")}</span>
                 <dl className="kv" style={{ marginTop: 10 }}>
                   {upstreamReceipts.map((u) => (
                     <div key={u.sig} style={{ display: "contents" }}>
                       <dt>{String(u.body.endpoint)}</dt>
-                      <dd>{usdc(String(u.body.amountUsdc ?? "0"), 6)} to {String(u.body.seller)} · {u.valid ? <span className="msg-ok">✓ signed</span> : <span className="msg-bad">✗ invalid</span>}</dd>
+                      <dd><Money v={String(u.body.amountUsdc ?? "0")} kind="micro" /> to {String(u.body.seller)} · {u.valid ? <span className="msg-ok">✓ signed</span> : <span className="msg-bad">✗ invalid</span>}</dd>
                     </div>
                   ))}
                 </dl>
@@ -135,8 +135,8 @@ export function Payments({ days }: { days: number }) {
                     <td className="mono muted">{when(p.ts)}</td>
                     <td className="mono">{p.endpointId.split(".")[1]}{p.sessionId && <span className="faint"> · session</span>}</td>
                     <td><Chain chain={p.originChain} /> <span className="mono muted">{originAmount(p.originChain, p.originSymbol, p.amountIn)}</span></td>
-                    <td className="num r">{p.status === "settled" ? usdc(p.amountOut) : <span className="faint">{usdc("0")}</span>}</td>
-                    <td className="num r hide-sm muted">{usd(p.feeUsd, 6)}</td>
+                    <td className="num r">{p.status === "settled" ? <Money v={p.amountOut} kind="micro" /> : <span className="faint">{money("0", "micro")}</span>}</td>
+                    <td className="num r hide-sm muted"><span title={`$${p.feeUsd.toFixed(6)}`}>{moneyUsd(p.feeUsd, "micro")}</span></td>
                     <td><Status value={p.status} /> <Sim on={p.simulated} /></td>
                     <td className="mono muted hide-sm">{p.method}</td>
                   </tr>

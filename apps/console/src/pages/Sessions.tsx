@@ -1,6 +1,6 @@
 import { useApi, type Session } from "../api";
-import { Chain, Empty, ErrorState, Loading, PageHead, Section, Sim, Status } from "../components/bits";
-import { ago, short, usdc } from "../format";
+import { Chain, Empty, ErrorState, Loading, Money, PageHead, Section, Sim, Status } from "../components/bits";
+import { ago, money, short } from "../format";
 
 export function Sessions({ live }: { live: boolean }) {
   const r = useApi<{ capUsdc: string; sessions: Session[] }>("/sessions");
@@ -16,7 +16,7 @@ export function Sessions({ live }: { live: boolean }) {
   return (
     <>
     {head}
-    <Section idx="01" title="Sessions" aside={<span className="mono">cap {usdc(capUsdc, 2)} per session</span>}>
+    <Section idx="01" title="Sessions" aside={<span className="mono">cap {money(capUsdc)} per session</span>}>
       <p className="trust">
         One payment opens a session; calls are metered against it and settled in batches; the unused balance is refunded on close or after 24 hours.
         You hold session funds (never more than the cap) until close. The buyer holds a signed session receipt the whole time.
@@ -37,9 +37,9 @@ export function Sessions({ live }: { live: boolean }) {
                   <td className="mono muted">{ago(s.openedAt)}</td>
                   <td className="mono">{s.endpointId.split(".")[1]}</td>
                   <td><Chain chain={s.originChain} /></td>
-                  <td className="num r">{usdc(s.fundedUsdc)}</td>
-                  <td className="num r">{usdc(s.spentUsdc)}</td>
-                  <td className="num r">{s.refundUsdc ? usdc(s.refundUsdc) : <span className="faint">open</span>}</td>
+                  <td className="num r"><Money v={s.fundedUsdc} kind="micro" /></td>
+                  <td className="num r"><Money v={s.spentUsdc} kind="micro" /></td>
+                  <td className="num r">{s.refundUsdc ? <Money v={s.refundUsdc} kind="micro" /> : <span className="faint">open</span>}</td>
                   <td><Status value={s.status} /> {s.refundState && s.refundState !== "none" && <Status value={s.refundState} />} <Sim on={s.simulated} /></td>
                   <td className="mono muted hide-sm">{short(s.refundTo, 12)}</td>
                 </tr>

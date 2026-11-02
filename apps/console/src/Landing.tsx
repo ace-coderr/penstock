@@ -3,7 +3,7 @@ import { Wordmark } from "./components/Wordmark";
 import { HostedBanner } from "./components/bits";
 import { STATIC_DEMO } from "./api";
 import { CardArt, HeroArt } from "./components/Iso";
-import { units } from "./format";
+import { moneyUsd, units } from "./format";
 import { useCountUp, useReveal } from "./motion";
 
 const REPO = "https://github.com/ace-coderr/penstock";
@@ -90,7 +90,7 @@ function Proof() {
   const items = [
     { v: stats.payments, f: (n: number) => Math.round(n).toLocaleString("en-US"), l: `payments in ${stats.days} days` },
     { v: stats.chains, f: (n: number) => String(Math.round(n)), l: "chains paid from, one account receiving" },
-    { v: usd, f: (n: number) => `$${n.toFixed(2)}`, l: "USDC received on NEAR" },
+    { v: usd, f: (n: number) => moneyUsd(n), l: "USDC received on NEAR" },
   ];
   return (
     <div className="proof" ref={ref}>

@@ -20,15 +20,51 @@ export function units(v: string | bigint, decimals: number, maxFraction = decima
   return `${neg ? "-" : ""}${a / base}${frac ? "." + frac : ""}`;
 }
 
-/** USDC base units -> "$12.3450" with fixed places, so ledger columns align. */
-export function usdc(v: string | bigint, places = 4): string {
-  const s = units(v, 6, places);
-  const [w, f = ""] = s.split(".");
-  return `$${Number(w).toLocaleString("en-US")}.${f.padEnd(places, "0")}`;
+/*
+ * Money formatting: the only place amounts become text.
+ *   total: totals and headline figures, always 2 decimals ("$1,234.50").
+ *   micro: per-call amounts, 2 to 4 decimals ("$0.004", "$0.0125", "$2.00"); a non-zero amount
+ *          below $0.0001 reads "<$0.0001". The exact value is available for a tooltip.
+ * A card uses one kind throughout.
+ */
+export type MoneyKind = "total" | "micro";
+
+function toBig(v: string | bigint): bigint {
+  return typeof v === "bigint" ? v : BigInt(v || "0");
 }
 
-export function usd(n: number, places = 4): string {
-  return `$${n.toFixed(places)}`;
+function grouped(whole: string): string {
+  return whole.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+}
+
+/** USDC base units (6 decimals) as dollars. */
+export function money(v: string | bigint, kind: MoneyKind = "total"): string {
+  const n = toBig(v);
+  const neg = n < 0n;
+  const a = neg ? -n : n;
+  const sign = neg ? "-" : "";
+  if (kind === "total") {
+    const cents = (a + 5_000n) / 10_000n; // round half up to 2 decimals
+    return `${sign}$${grouped((cents / 100n).toString())}.${(cents % 100n).toString().padStart(2, "0")}`;
+  }
+  if (a > 0n && a < 100n) return `${sign}<$0.0001`;
+  const tenThousandths = (a + 50n) / 100n; // round half up to 4 decimals
+  const whole = tenThousandths / 10_000n;
+  let frac = (tenThousandths % 10_000n).toString().padStart(4, "0").replace(/0+$/, "");
+  if (frac.length < 2) frac = frac.padEnd(2, "0");
+  return `${sign}$${grouped(whole.toString())}.${frac}`;
+}
+
+/** A dollar amount held as a float (route fees in USD). */
+export function moneyUsd(n: number, kind: MoneyKind = "total"): string {
+  return money(BigInt(Math.round(n * 1e6)), kind);
+}
+
+/** Full precision for tooltips: "0.004000 USDC". */
+export function moneyExact(v: string | bigint): string {
+  const s = units(toBig(v), 6, 6);
+  const [w, f = ""] = s.split(".");
+  return `${w}.${f.padEnd(6, "0")} USDC`;
 }
 
 export function originAmount(chain: string, symbol: string, amount: string): string {

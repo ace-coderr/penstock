@@ -1,6 +1,6 @@
 import { useEffect, useRef, type ReactNode } from "react";
 import { STATIC_DEMO, type ApiError } from "../api";
-import { CHAIN_META } from "../format";
+import { CHAIN_META, money, moneyExact, type MoneyKind } from "../format";
 
 export function Section({ idx, title, aside, children }: { idx: string; title: string; aside?: ReactNode; children: ReactNode }) {
   return (
@@ -15,14 +15,21 @@ export function Section({ idx, title, aside, children }: { idx: string; title: s
   );
 }
 
-/** Persistent notice on every page of the hosted static build. */
-export function HostedBanner() {
-  if (!STATIC_DEMO) return null;
+/**
+ * The one global banner, at the very top. Hosted static build: the hosted-demo notice on every
+ * page. Local demo/dry console: the mode's simulation label (pass `label`). Live: nothing.
+ */
+export function HostedBanner({ label }: { label?: string } = {}) {
+  if (!STATIC_DEMO && !label) return null;
   return (
     <div className="hosted" role="note">
       <div className="frame hosted-row">
         <span className="sim">Simulated</span>
-        <span>Hosted demo: everything here is simulated. Run it locally for the real flow (see <a href="https://github.com/ace-coderr/penstock#try-it-do-x-see-y">README</a>).</span>
+        {STATIC_DEMO ? (
+          <span>Hosted demo: everything here is simulated. Run it locally for the real flow (see <a href="https://github.com/ace-coderr/penstock#readme">README</a>).</span>
+        ) : (
+          <span>{label} Rows marked “simulated” are demo data, not real transactions.</span>
+        )}
       </div>
     </div>
   );
@@ -41,13 +48,20 @@ export function PageHead({ eyebrow, title, children, aside }: { eyebrow: string;
   );
 }
 
+/** Full chain name, with the short code as a small mono suffix where there is room. */
 export function Chain({ chain }: { chain: string }) {
   const m = CHAIN_META[chain] ?? { label: chain, tag: chain.slice(0, 3).toUpperCase() };
   return (
-    <span className="chain" title={m.label}>
-      <b aria-label={m.label}>{m.tag}</b>
+    <span className="chain">
+      <span className="chain-name">{m.label}</span>
+      {m.label !== m.label.toUpperCase() && <b className="chain-code" aria-hidden="true">{m.tag}</b>}
     </span>
   );
+}
+
+/** An amount in USDC base units, formatted by kind, with the exact value as a tooltip. */
+export function Money({ v, kind = "total", className }: { v: string | bigint; kind?: MoneyKind; className?: string }) {
+  return <span className={className} title={moneyExact(v)}>{money(v, kind)}</span>;
 }
 
 export function Status({ value }: { value: string }) {

@@ -1,7 +1,7 @@
 import { useApi, type Overview, type Payment } from "../api";
 import { Bars, Flow } from "../components/Flow";
-import { Chain, Empty, ErrorState, Loading, PageHead, Section, Sim, Status } from "../components/bits";
-import { ago, originAmount, pct, usd, usdc } from "../format";
+import { Chain, Empty, ErrorState, Loading, Money, PageHead, Section, Sim, Status } from "../components/bits";
+import { ago, money, moneyUsd, originAmount, pct } from "../format";
 import { useCountUp, useNewIds } from "../motion";
 
 export function Ledger({ overview }: { overview: Overview }) {
@@ -19,13 +19,13 @@ export function Ledger({ overview }: { overview: Overview }) {
         <div className="hero">
           <div className="panel">
             <div className="total-label">Received into your account</div>
-            <div className="total num" aria-live="polite" aria-label={`${usdc(o.receivedUsdc, 2)} USDC`}>{usdc(BigInt(Math.round(received)), 2)}<small>USDC</small></div>
+            <div className="total num" aria-live="polite" aria-label={`${money(o.receivedUsdc)} USDC`}>{money(BigInt(Math.round(received)))}<small>USDC</small></div>
             <div className="into">→ {o.seller.nearAccount}</div>
             <dl className="facts">
-              <dt>Revenue recognised</dt><dd>{usdc(o.revenueUsdc)}</dd>
-              <dt>Paid to upstream sellers</dt><dd>{usdc(o.upstreamCostUsdc)}</dd>
-              <dt>Session balance held</dt><dd>{usdc(o.sessionFloatUsdc)}</dd>
-              <dt>Route fees (paid by buyers)</dt><dd>{usd(o.buyerFeesUsd)}</dd>
+              <dt>Revenue recognised</dt><dd><Money v={o.revenueUsdc} /></dd>
+              <dt>Paid to upstream sellers</dt><dd><Money v={o.upstreamCostUsdc} /></dd>
+              <dt>Session balance held</dt><dd><Money v={o.sessionFloatUsdc} /></dd>
+              <dt>Route fees (paid by buyers)</dt><dd>{moneyUsd(o.buyerFeesUsd)}</dd>
             </dl>
           </div>
           <div className="flow-wrap">
@@ -40,7 +40,7 @@ export function Ledger({ overview }: { overview: Overview }) {
           <div className="kpi"><div className="kpi-l">Chains paid from</div><div className="kpi-v">{o.byChain.length}</div><div className="kpi-s">one account receives</div></div>
           <div className="kpi"><div className="kpi-l">Probe → paid</div><div className="kpi-v">{pct(o.conversion)}</div><div className="kpi-s">{o.probes} probes</div></div>
           <div className="kpi"><div className="kpi-l">Refunds</div><div className="kpi-v">{o.refunds}</div><div className="kpi-s">returned by route to payer</div></div>
-          <div className="kpi"><div className="kpi-l">Open sessions</div><div className="kpi-v">{o.openSessions}</div><div className="kpi-s">{usdc(o.sessionFloatUsdc, 2)} held</div></div>
+          <div className="kpi"><div className="kpi-l">Open sessions</div><div className="kpi-v">{o.openSessions}</div><div className="kpi-s">{money(o.sessionFloatUsdc)} held</div></div>
         </div>
       </Section>
 
@@ -61,7 +61,7 @@ export function Ledger({ overview }: { overview: Overview }) {
                     <td className="mono muted">{ago(p.ts)}</td>
                     <td className="mono">{p.endpointId.split(".")[1]}</td>
                     <td><Chain chain={p.originChain} /> <span className="mono muted">{originAmount(p.originChain, p.originSymbol, p.amountIn)}</span></td>
-                    <td className="num r">{usdc(p.amountOut)}</td>
+                    <td className="num r"><Money v={p.amountOut} kind="micro" /></td>
                     <td><Status value={p.status} /> <Sim on={p.simulated} /></td>
                   </tr>
                 ))}

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { adminToken, setAdminToken, STATIC_DEMO, useApi, type Overview, type Payment } from "./api";
-import { CHAIN_META, usdc } from "./format";
+import { CHAIN_META, money } from "./format";
 import { ErrorState, HostedBanner, Loading } from "./components/bits";
 import { Wordmark } from "./components/Wordmark";
 import { Endpoints } from "./pages/Endpoints";
@@ -63,7 +63,7 @@ function useArrivalToasts(): Toast[] {
     const chain = CHAIN_META[p.originChain]?.label ?? p.originChain;
     const t: Toast = {
       id: p.id,
-      text: `${p.simulated ? "Simulated agent paid" : "Payment received"}: ${usdc(p.amountOut)}`,
+      text: `${p.simulated ? "Simulated agent paid" : "Payment received"}: ${money(p.amountOut, "micro")}`,
       detail: `${p.endpointId.split(".")[1]} · from ${p.originSymbol} on ${chain}${p.sessionId ? " · session" : ""}`,
     };
     setToasts((xs) => [...xs.slice(-2), t]);
@@ -88,7 +88,7 @@ export function Console() {
     <>
       <a className="skip" href="#main">Skip to content</a>
       <header className="top">
-        <HostedBanner />
+        <HostedBanner label={ov && !STATIC_DEMO && ov.simulation.settlement ? ov.simulation.label : undefined} />
         <div className="frame">
           <div className="top-row">
             <a className="mark" href="/" aria-label="Penstock home">
@@ -118,9 +118,6 @@ export function Console() {
       </header>
       <div className="frame">
         <main id="main" className="console" tabIndex={-1}>
-          {ov && ov.simulation.settlement && (
-            <div className="banner" role="note"><span className="sim">Simulated</span> {ov.simulation.label} Every row marked “simulated” is demo data, not a real transaction.</div>
-          )}
           {ov && ov.account.exists === false && (
             <div className="banner banner-bad" role="alert"><strong>Payout account problem.</strong> {ov.account.message} Quotes are refused until this is fixed.</div>
           )}
