@@ -1,0 +1,17 @@
+{
+  "name": "@penstock/live",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "license": "MIT",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@near-js/crypto": "2.5.1",
+    "@near-js/signers": "2.5.1",
+    "@near-js/transactions": "2.5.1",
+    "@penstock/core": "workspace:*",
+    "@penstock/intents-adapter": "workspace:*"
+  }
+}
