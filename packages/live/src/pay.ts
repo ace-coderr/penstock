@@ -8,6 +8,8 @@
  *                                           said yes; refuses above the approved bound), then
  *                                           redeems it at the proxy and records the proof.
  *   pnpm live:pay resume                     continues a sent payment (slow 1Click, restart).
+ *   pnpm live:pay abandon                    clears a send whose transaction never reached the chain
+ *                                           (only after the quote deadline; rules in guard.ts).
  *
  * Refund test: `send --confirm <deposit> --refund-test-usdc N` deliberately sends N, which must be
  * below the quote's minAmountIn (so 1Click refunds it after the deadline) and at least three times
@@ -24,9 +26,10 @@ import { CHAINS, formatUnits, type PaymentRequired, type PaymentRequirements } f
 import { HttpOneClick, buildDepositPayload, buildQuotePayload, depositInstructions, findQuotedEntry, isUnquoted, type DepositInstructions } from "@penstock/intents-adapter";
 import { assertWithinCap } from "./cap";
 import { readLiveEnv } from "./env";
+import { abandonRefusal, planRefusal, redactSpent, sendRefusal, type PayStatus } from "./guard";
 import { solanaAddressOf } from "./keys";
 import { SOLANA_USDC_MINT, solanaLamports, solanaUsdc, solanaUsdcDelta } from "./rpc";
-import { buildUsdcTransfer, sendAndConfirm } from "./solana";
+import { buildUsdcTransfer, sendAndConfirm, signatureOnChain } from "./solana";
 
 const SOL = CHAINS.find((c) => c.key === "sol")!;
 const DIR = join(process.cwd(), "data", "live-proof");
@@ -34,7 +37,7 @@ const STATE = join(DIR, "payment.json");
 const RESUME_FOR_MS = 20 * 60_000;
 
 interface State {
-  status: "planned" | "sending" | "sent" | "paid" | "refunded" | "failed";
+  status: PayStatus;
   url: string;
   createdAt: string;
   required: PaymentRequired;
@@ -72,8 +75,8 @@ async function call(url: string, payload?: unknown): Promise<Response> {
 
 async function plan(url: string) {
   payerChecks();
-  const prev = load();
-  if (prev && (prev.status === "sending" || prev.status === "sent")) die(`a payment is already in flight (${prev.status}, tx ${prev.txHash ?? "?"}): run \`pnpm live:pay resume\``);
+  const busy = planRefusal(load());
+  if (busy) die(busy);
   const first = await call(url);
   if (first.status !== 402) die(`expected HTTP 402 from ${url}, got ${first.status}`);
   const required = decodePaymentRequiredHeader(first.headers.get("payment-required")!) as unknown as PaymentRequired;
@@ -98,7 +101,7 @@ EXACT PAYMENT (nothing has been sent)
   to            ${deposit.payTo}  (single-use 1Click deposit address)
   seller gets   ${usdc(dest.amount)} USDC on NEAR to ${dest.recipient}
   route         Solana USDC -> NEAR Intents (1Click) -> NEAR USDC; quote signature verified by the proxy
-  fees          ${usdc(BigInt(deposit.amount) - BigInt(dest.amount))} USDC (route fee plus the seller's one-time USDC storage registration)
+  fees          ${usdc(BigInt(deposit.amount) - BigInt(dest.amount))} USDC (route fees; includes the seller's USDC storage registration if it is not registered yet)
   refund        to ${env.payerAddress} on Solana if the swap fails
   quote expires ${deposit.refundDeadline}
   cap           ${quotedUsd.toFixed(6)} USD <= LIVE_MAX_USD ${env.maxUsd}
@@ -109,10 +112,10 @@ To send it:  pnpm live:pay send --confirm ${deposit.payTo}
 
 async function send(confirm: string | undefined) {
   payerChecks();
-  const s = load() ?? die("no planned payment: run `pnpm live:pay plan <url>` first");
-  if (s.status !== "planned") die(`refusing to send: state is "${s.status}"${s.txHash ? ` (tx ${s.txHash})` : ""}; a payment is sent at most once`);
-  if (confirm !== s.deposit.payTo) die(`refusing to send: --confirm must be the deposit address ${s.deposit.payTo}`);
-  if (Date.parse(s.deposit.refundDeadline) - Date.now() < 90_000) die("the quote expires in under 90 s: plan again");
+  const loaded = load();
+  const refusal = sendRefusal(loaded, confirm, Date.now());
+  if (refusal) die(refusal);
+  const s = loaded!;
   assertWithinCap(s.quotedUsd, env.maxUsd);
   let amount = BigInt(s.deposit.amount);
   const refundTest = rest.includes("--refund-test-usdc");
@@ -173,8 +176,8 @@ async function resume() {
         const body = await res.text();
         const status = await new HttpOneClick({ baseUrl: env.oneClickBaseUrl, jwt: env.oneClickJwt || null }).status(s.deposit.payTo).catch(() => null);
         const result = { settle, receipt, oneClickStatus: status, responseBody: body.slice(0, 2000), finishedAt: new Date().toISOString() };
-        save({ ...s, status: "paid", result });
-        writeFileSync(join(DIR, `proof-${Date.now()}.json`), JSON.stringify({ ...s, status: "paid", result }, null, 2));
+        save(redactSpent({ ...s, status: "paid", result }));
+        writeFileSync(join(DIR, `proof-${Date.now()}.json`), JSON.stringify(redactSpent({ ...s, status: "paid" as const, result }), null, 2));
         console.log(`PAID: HTTP 200
   origin tx      https://solscan.io/tx/${s.txHash}
   NEAR delivery  ${settle?.transaction ? `https://nearblocks.io/txns/${settle.transaction}` : "?"}
@@ -194,8 +197,8 @@ async function resume() {
           if (t.hash !== s.txHash && (await solanaUsdcDelta(env.solanaRpc, t.hash, env.payerAddress).catch(() => 0n)) > 0n) refundTx = t.hash;
         }
         const result = { httpStatus: res.status, settle, body: body.slice(0, 2000), oneClickStatus: status, refundTx, finishedAt: new Date().toISOString() };
-        save({ ...s, status: refunded ? "refunded" : "failed", result });
-        writeFileSync(join(DIR, `proof-${Date.now()}.json`), JSON.stringify({ ...s, status: refunded ? "refunded" : "failed", result }, null, 2));
+        save(redactSpent({ ...s, status: refunded ? "refunded" : "failed", result }));
+        writeFileSync(join(DIR, `proof-${Date.now()}.json`), JSON.stringify(redactSpent({ ...s, status: refunded ? ("refunded" as const) : ("failed" as const), result }), null, 2));
         if (refunded && s.refundTest) {
           console.log(`REFUNDED (as intended): HTTP ${res.status}, ${settle?.errorReason ?? ""}
   deposit tx     https://solscan.io/tx/${s.txHash}
@@ -212,7 +215,17 @@ async function resume() {
   }
 }
 
+async function abandon() {
+  const s = load();
+  const onChain = s?.txHash ? await signatureOnChain(env.solanaRpc, s.txHash) : false;
+  const refusal = abandonRefusal(s, onChain, Date.now());
+  if (refusal) die(refusal);
+  save(redactSpent({ ...s!, status: "abandoned" }));
+  console.log(`abandoned: transaction ${s!.txHash} never reached Solana, so no USDC left the payer`);
+}
+
 if (cmd === "plan") await plan(rest[0] ?? die("usage: pnpm live:pay plan <paid URL>"));
 else if (cmd === "send") await send(rest[rest.indexOf("--confirm") + 1]);
 else if (cmd === "resume") await resume();
-else die("usage: pnpm live:pay plan <url> | send --confirm <deposit address> | resume");
+else if (cmd === "abandon") await abandon();
+else die("usage: pnpm live:pay plan <url> | send --confirm <deposit address> | resume | abandon");

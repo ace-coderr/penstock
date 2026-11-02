@@ -40,3 +40,9 @@ export async function sendAndConfirm(rpcUrl: string, raw: Buffer, signature: str
   const r = await conn.confirmTransaction({ signature, blockhash, lastValidBlockHeight }, "confirmed");
   return r.value.err ? "failed" : "confirmed";
 }
+
+/** Whether Solana has any record of this signature (searches history, not just recent blocks). */
+export async function signatureOnChain(rpcUrl: string, signature: string): Promise<boolean> {
+  const r = await new Connection(rpcUrl, "confirmed").getSignatureStatuses([signature], { searchTransactionHistory: true });
+  return r.value[0] !== null;
+}

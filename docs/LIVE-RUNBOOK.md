@@ -91,3 +91,23 @@ The standard x402 `exact` scheme on NEAR uses NEP-366 signed delegate actions: t
 2. One live payment through the proxy (section 5): the quote is shown, a human says "yes", then it is sent and recorded. If the seller had no storage, this delivery registers it (section 2).
 3. A refund case only if it can be done safely within the cap (section 6).
 4. Every transaction goes into [PROOF.md](PROOF.md) with explorer links.
+
+## 9. Commands used for the proof
+
+```bash
+# 1. preflight, moves nothing
+pnpm live:check
+# 2. live proxy on loopback only (the example upstream runs on 127.0.0.1, so loopback upstreams are allowed for this run)
+HOST=127.0.0.1 ALLOW_PRIVATE_UPSTREAMS=true pnpm start:live
+# 3. add a paid endpoint in the console (05 Endpoints) or POST /api/admin/endpoints with ADMIN_TOKEN
+# 4. show the exact payment, send nothing
+pnpm live:pay plan "http://127.0.0.1:4020/p/tidewater/tides-now?harbor=rotterdam"
+# 5. after a human yes: send once, within the approved bound
+pnpm live:pay send --confirm <deposit address> --max-usdc 0.02
+# refund test: deliberately below minAmountIn, at least 3x the refund fee
+pnpm live:pay send --confirm <deposit address> --refund-test-usdc 0.05
+# slow 1Click or a restart: continue without resending
+pnpm live:pay resume
+```
+
+State and proof records are written to `data/live-proof/` (gitignored). Spent operation tokens are redacted there; the payer key is never written.
