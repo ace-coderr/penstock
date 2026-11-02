@@ -1,6 +1,6 @@
 /** Minimal structured logger with redaction. Logs never carry tokens, signatures, keys or raw IPs. */
 
-const SECRET_KEYS = /(token|secret|signature|authorization|apikey|api_key|jwt|password|privatekey|secretkey|operationtoken|payment-signature|cookie)/i;
+const SECRET_KEYS = /(token|secret|signature|authorization|api[-_]?key|jwt|password|private[-_]?key|secret[-_]?key|seed|mnemonic|operationtoken|payment-signature|cookie)/i;
 
 function redact(value: unknown, depth = 0): unknown {
   if (depth > 4) return "[depth]";

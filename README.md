@@ -146,7 +146,7 @@ You need Node 22.13+ (Node 24 recommended) and pnpm 9 (`corepack enable` provide
     - `ADMIN_TOKEN`: 24+ characters.
     - `RESALE_NEAR_KEY`: only for resale endpoints. It is a full-access key of your payout account, used to pay upstream sellers. Resale endpoints refuse payment until it is set.
     - `FACILITATOR_URL` and `FACILITATOR_API_KEY`: an x402 facilitator for `near:mainnet`, such as an instance of [fastnear/x402-facilitator](https://github.com/fastnear/x402-facilitator). Its keys are approved by hand per payee.
-    - Optionally `ONECLICK_JWT`. Without it, 1Click applies its keyless fee.
+    - Optionally `ONECLICK_JWT`: a partner JWT from [partners.near-intents.org](https://partners.near-intents.org). Without it 1Click adds 0.25% to every quote; with it the partner fee schedule applies and confidential quotes work. It is sent as the `X-API-Key` header and never logged.
 
     Then run:
     ```bash
@@ -220,6 +220,23 @@ The build also writes `favicon.svg` and a 1200x630 `social-card.png` (drawn as S
 
 No secrets are needed or used: the only build variables are the two versions above and the optional public `SITE_URL`.
 
+## Integration: NEAR Intents 1Click Swap API
+
+Cross-chain settlement uses the documented [1Click Swap API](https://docs.near-intents.org/integration/distribution-channels/1click-api/about-1click-api) from NEAR Intents. The client in `packages/intents-adapter/src/oneclick.ts` is written against the official OpenAPI document, `info.version` **0.1.10**, and was re-checked field by field against [docs.near-intents.org](https://docs.near-intents.org/) on 2026-11-02 (the list is in [docs/SPEC-NOTES.md](docs/SPEC-NOTES.md#5-1click-swap-api-the-documented-integration)).
+
+| Call | Used for |
+| --- | --- |
+| `GET /v0/tokens` | supported assets and indicative prices |
+| `POST /v0/quote` | `dry: true` for indicative prices and route minimums; `dry: false` (`EXACT_OUTPUT`, `ORIGIN_CHAIN` deposit, recipient = the seller's NEAR account, `refundTo` = the payer on the origin chain) for a real deposit address |
+| `GET /v0/status` | deposit detection, delivery proof, refunds |
+| `POST /v0/deposit/submit` | optional faster deposit detection |
+
+- Every quote's ed25519 `signature` is verified before Penstock uses its deposit address or amounts, the same check as `verifyQuoteSignature()` in the official TypeScript SDK (`@defuse-protocol/one-click-sdk-typescript` 0.1.26, which Penstock mirrors with `node:crypto` instead of depending on).
+- The optional partner JWT goes in `X-API-Key`, the header the OpenAPI document recommends.
+- NEAR Intents has no testnet. Live testing uses separate dev accounts, tiny amounts and `dry: true` quotes wherever possible ([docs/LIVE-RUNBOOK.md](docs/LIVE-RUNBOOK.md)).
+
+**The x402 side.** How a cross-chain payment is expressed in x402 terms (`scheme: "exact"` with `extra.assetTransferMethod: "near-intents"`, a quoted second 402, an operation token) follows an **unofficial community draft** of an x402 near-intents transfer method, where it helps interoperability. It is not an official x402 scheme, Penstock makes no conformance claim, and everything draft-specific stays inside `packages/intents-adapter`. The standard `exact` scheme on NEAR (`@x402/near`) is the official x402 path for USDC already on NEAR.
+
 ## How a payment works
 
 ```
@@ -260,9 +277,10 @@ apps/console            React + Vite: landing page at / and seller console at /a
                         funnel, sessions, endpoints); design tokens in src/tokens.css, illustrations drawn in code
 packages/core           types, chain registry, money math, config/modes, SQLite ledger (node:sqlite),
                         ed25519 receipts, redacting logger, deterministic seed data
-packages/intents-adapter  the ONLY module that knows the near-intents and 1Click wire shapes: 1Click client
-                        (pinned to API 0.1.10), simulated and dry backends, operation tokens, the
-                        near-intents payment method, route planner, buyer payload helpers
+packages/intents-adapter  the ONLY module that knows the 1Click API and the near-intents wire shape: 1Click
+                        client (official API 0.1.10, quote signatures verified), simulated and dry backends,
+                        operation tokens, the near-intents payment method (unofficial draft shape), route
+                        planner, buyer payload helpers
 packages/buyer-mcp      buyer library (discovery search, route ranking, automatic 402 handling,
                         automatic sessions) and its stdio MCP server
 packages/selftest       `pnpm selftest <url>`
@@ -324,8 +342,8 @@ The audit and its results are in [docs/AUDIT.md](docs/AUDIT.md). Main measures:
 
 - **The Aurora route cannot pay yet.** It verifies the private chain, but 1Click has no route from it. Confidential Intents needs your own 1Click JWT outside demo mode.
 - **Resale is upfront.** If an upstream seller fails after the buyer has paid, the buyer gets a 502 with the receipt; there is no automatic refund.
-- **Penstock does not observe origin chains itself.** For near-intents, deposit detection and delivery proof come from 1Click `GET /v0/status`; the draft spec asks the facilitator to observe the origin chain.
-- **Quote signatures are not verified.** Penstock checks that the echoed quote terms match the seller's destination, but it does not yet check 1Click's ed25519 quote `signature`, because the public key is not documented in the sources read.
+- **Penstock does not observe origin chains itself.** For near-intents, deposit detection and delivery proof come from 1Click `GET /v0/status`; the unofficial draft asks the facilitator to observe the origin chain.
+- **Quote signatures depend on one published key.** Penstock verifies every 1Click quote with the manager key published in the official SDK. If 1Click rotates that key, quotes fail closed (no payment proceeds) until the key is updated.
 - **The 402 header is about 10 KB,** because it lists 19 origin entries. That is fine for Node and most clients, but reverse proxies with 4–8 KB header buffers need a larger limit. The same object is also in the response body.
 - **The facilitator and the ledger are single-node.** Claims are exactly-once within one SQLite ledger, so a multi-instance deployment needs a shared database.
 - **Live deposits on origin chains need the agent's own wallet.** The MCP server returns deposit instructions and `penstock_resume` finishes the payment. No origin-chain wallets are bundled.
@@ -333,11 +351,11 @@ The audit and its results are in [docs/AUDIT.md](docs/AUDIT.md). Main measures:
 
 ## Credits and sources
 
-- **The near-intents payment method** is the draft "specs(exact): add near-intents `upfront` method" by Iker ([IkerAlus](https://github.com/IkerAlus)), [x402-foundation/x402 PR #3370](https://github.com/x402-foundation/x402/pull/3370). Penstock implements it, pinned at commit `2e9dded`. The spec is theirs, not ours.
+- **NEAR Intents 1Click Swap API** ([docs](https://docs.near-intents.org/integration/distribution-channels/1click-api/about-1click-api)): the documented integration for quotes, deposit addresses, status and refunds, API 0.1.10.
+- **The near-intents x402 wire shape** follows an unofficial community draft of an x402 near-intents transfer method by Iker ([IkerAlus](https://github.com/IkerAlus)), discussed in the [x402 repository](https://github.com/x402-foundation/x402). It is not an official x402 scheme; Penstock follows it where it helps and makes no conformance claim. The idea is theirs.
 - **x402** is by the [x402 Foundation](https://github.com/x402-foundation/x402). Penstock uses `@x402/core` and `@x402/near` 2.29.0 (Apache-2.0).
 - **[fastnear/x402-facilitator](https://github.com/fastnear/x402-facilitator)** is the reference NEAR facilitator used for live `exact` settlement.
-- **NEAR Intents 1Click API** ([docs](https://docs.near-intents.org/)): quotes, deposit addresses, status and refunds.
-- **Libraries:** React, Vite, `@near-js/*`, Newsreader, Geist and JetBrains Mono fonts via `@fontsource`, Vitest, ESLint, TypeScript and tsx. All were written by others and used under their licenses. There is no pre-hackathon code: the repository was started on 2026-11-01.
+- **Libraries:** React, Vite, `@near-js/*`, Newsreader, Geist and JetBrains Mono fonts via `@fontsource`, `@resvg/resvg-js` and `opentype.js` (build-time social card), Vitest, ESLint, TypeScript and tsx. All were written by others and used under their licenses. There is no pre-hackathon code: the repository was started on 2026-11-01.
 
 Parts of this codebase were written with AI assistance.
 

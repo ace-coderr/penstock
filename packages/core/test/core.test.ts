@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import {
-  CHAINS, HOME_SELLER_ID, ReceiptSigner, Store, canonicalJson, formatUnits, loadConfig, parseMode, parseUnits, seedStore, verifyReceipt,
+  CHAINS, HOME_SELLER_ID, ReceiptSigner, Store, canonicalJson, formatUnits, loadConfig, log, parseMode, parseUnits, seedStore, verifyReceipt,
 } from "../src/index";
 
 describe("money", () => {
@@ -79,5 +79,28 @@ describe("store guarantees", () => {
     expect(store.markExecuted("op", now)).toBe(false);
     expect(store.firstSeen("h", now)).toBe(true);
     expect(store.firstSeen("h", now)).toBe(false);
+  });
+});
+
+describe("log redaction", () => {
+  it("never writes keys, JWTs or secrets, whatever the field spelling", () => {
+    const lines: string[] = [];
+    const orig = process.stdout.write.bind(process.stdout);
+    const prev = process.env.PENSTOCK_LOG;
+    process.env.PENSTOCK_LOG = "info";
+    (process.stdout as unknown as { write: (s: string) => boolean }).write = (s: string) => (lines.push(s), true);
+    try {
+      log("info", "check", {
+        headers: { "x-api-key": "jwt-value-1", authorization: "Bearer jwt-value-2" },
+        PAYER_SOLANA_PRIVATE_KEY: "solana-secret-3", sellerNearPrivateKey: "ed25519:near-secret-4",
+        ONECLICK_JWT: "jwt-value-5", OPERATION_TOKEN_SECRET: "hmac-secret-6", ok: "visible",
+      });
+    } finally {
+      (process.stdout as unknown as { write: typeof orig }).write = orig;
+      process.env.PENSTOCK_LOG = prev;
+    }
+    const out = lines.join("");
+    expect(out).toContain("visible");
+    for (const s of ["jwt-value-1", "jwt-value-2", "solana-secret-3", "near-secret-4", "jwt-value-5", "hmac-secret-6"]) expect(out).not.toContain(s);
   });
 });

@@ -26,7 +26,10 @@ describe("discovery", () => {
     expect(doc.simulated).toBe(true);
     expect(doc.destination.network).toBe("near:mainnet");
     expect(doc.acceptedOrigins.map((o) => o.chain)).toEqual(expect.arrayContaining(["near", "base", "sol", "btc", "eth"]));
-    expect(doc.paymentMethods.find((m) => m.id === "near-intents")!.specSource).toContain("pull/3370");
+    const ni = doc.paymentMethods.find((m) => m.id === "near-intents") as { specSource?: string; spec?: string; settlement?: { api: string; version: string } };
+    expect(ni.spec).toBe("unofficial-draft");
+    expect(ni.specSource).toContain("SPEC-NOTES.md");
+    expect(ni.settlement).toMatchObject({ api: "1Click Swap API", version: "0.1.10" });
     const tides = doc.sellers.find((s) => s.id === "tidewater")!.endpoints.find((e) => e.id === "tidewater.tides")!;
     expect(tides).toMatchObject({ url: `${h.base}/p/tidewater/tides`, priceUsd: "0.004" });
     expect(tides.sessions).not.toBeNull();

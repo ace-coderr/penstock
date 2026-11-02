@@ -235,7 +235,7 @@ export function Landing() {
             <h3>Source</h3>
             <a href={REPO}>GitHub</a>
             <a href={`${REPO}/blob/main/LICENSE`}>License (MIT)</a>
-            <a href="https://github.com/x402-foundation/x402/pull/3370">near-intents draft</a>
+            <a href="https://docs.near-intents.org/integration/distribution-channels/1click-api/about-1click-api">1Click Swap API docs</a>
           </nav>
         </div>
       </footer>

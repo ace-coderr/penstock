@@ -2,7 +2,7 @@ import type { PaymentPayload, PaymentRequired, PaymentRequirements } from "@pens
 import { NEAR_INTENTS } from "./method";
 
 /**
- * Buyer-side helpers for the near-intents method (draft PR #3370, "PaymentPayload payload Field").
+ * Buyer-side helpers for the near-intents method (unofficial draft wire shape, "PaymentPayload payload Field").
  * Quote payload: { type: "quote", refundTo, slippageTolerance? }, accepted = unquoted entry.
  * Deposit payload: { type: "deposit", operationToken, depositAddress, depositMemo?, txHash }, accepted = unquoted entry.
  */

@@ -1,6 +1,8 @@
 /**
- * The only module that knows the near-intents wire shape (x402 `exact` + `assetTransferMethod:
- * "near-intents"`, draft in x402-foundation/x402 PR #3370 by Iker) and the 1Click API shape.
+ * The only module that knows the 1Click Swap API (the documented NEAR Intents integration, API
+ * 0.1.10) and the near-intents x402 wire shape. That wire shape follows an unofficial community
+ * draft of an x402 "near-intents" transfer method where it helps; it is not an official x402
+ * scheme and Penstock makes no conformance claim. Everything draft-specific stays in this package.
  */
 import type { PenstockConfig } from "@penstock/core";
 import { HttpOneClick, type OneClick } from "./oneclick";
@@ -9,11 +11,15 @@ import { NearIntentsMethod, type ConfidentialityChooser } from "./method";
 import { TokenPricePricer } from "./pricing";
 import { RoutePlanner } from "./routes";
 
-export const NEAR_INTENTS_SPEC_VERSION = "nearintents-draft-2e9dded";
-export const NEAR_INTENTS_SPEC_SOURCE = "https://github.com/x402-foundation/x402/pull/3370 (specs/schemes/exact/scheme_exact_nearintents.md @ 2e9dded9)";
+/** Follows an unofficial draft; not an official x402 scheme, no conformance claim. */
+export const NEAR_INTENTS_SPEC_VERSION = "unofficial-draft";
+export const NEAR_INTENTS_SPEC_SOURCE = "https://github.com/ace-coderr/penstock/blob/main/docs/SPEC-NOTES.md#6-near-intents-transfer-method-unofficial-draft";
+/** `info.version` of the official 1Click OpenAPI document this client is written against. */
 export const ONECLICK_API_VERSION = "0.1.10";
+export const ONECLICK_API_DOCS = "https://docs.near-intents.org/integration/distribution-channels/1click-api/about-1click-api";
 
 export * from "./oneclick";
+export * from "./quote-signature";
 export * from "./oneclick-sim";
 export * from "./token";
 export * from "./method";

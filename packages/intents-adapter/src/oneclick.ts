@@ -1,8 +1,11 @@
 /**
- * 1Click Swap API client, pinned to the OpenAPI document `info.version: 0.1.10` fetched from
- * https://1click.chaindefuser.com/docs/v0/openapi.yaml on 2026-11-01. Field names below are
- * copied from that document; see docs/SPEC-NOTES.md section 6.
+ * 1Click Swap API client: the documented NEAR Intents integration
+ * (https://docs.near-intents.org/integration/distribution-channels/1click-api/about-1click-api).
+ * Field names are copied from the official OpenAPI document, `info.version: 0.1.10`
+ * (https://1click.chaindefuser.com/docs/v0/openapi.yaml, re-checked against the docs on 2026-11-02);
+ * see docs/SPEC-NOTES.md section 5.
  */
+import { verifyQuoteSignature } from "./quote-signature";
 
 export type SwapType = "EXACT_INPUT" | "EXACT_OUTPUT" | "FLEX_INPUT" | "ANY_INPUT";
 export type DepositType = "ORIGIN_CHAIN" | "INTENTS" | "CONFIDENTIAL_INTENTS";
@@ -145,8 +148,11 @@ export function assertStatusResponse(x: unknown): StatusResponse {
 
 export interface HttpOneClickOptions {
   baseUrl: string;
+  /** Optional partner JWT, sent as the documented `X-API-Key` header. Never logged. */
   jwt?: string | null;
   timeoutMs?: number;
+  /** Check 1Click's ed25519 signature on every quote (default true). */
+  verifySignatures?: boolean;
   fetchImpl?: typeof fetch;
 }
 
@@ -162,7 +168,8 @@ export class HttpOneClick implements OneClick {
 
   private async call(path: string, init: RequestInit = {}): Promise<unknown> {
     const headers: Record<string, string> = { accept: "application/json", ...(init.body ? { "content-type": "application/json" } : {}) };
-    if (this.opts.jwt) headers.authorization = `Bearer ${this.opts.jwt}`;
+    // X-API-Key is the documented header; `Authorization: Bearer` is marked legacy in the OpenAPI document.
+    if (this.opts.jwt) headers["x-api-key"] = this.opts.jwt;
     const res = await this.f(`${this.opts.baseUrl}${path}`, { ...init, headers, signal: AbortSignal.timeout(this.opts.timeoutMs ?? 15_000) });
     const text = await res.text();
     let body: unknown;
@@ -187,7 +194,11 @@ export class HttpOneClick implements OneClick {
   }
 
   async quote(req: QuoteRequest): Promise<QuoteResponse> {
-    return assertQuoteResponse(await this.call("/v0/quote", { method: "POST", body: JSON.stringify(req) }), !req.dry);
+    const res = assertQuoteResponse(await this.call("/v0/quote", { method: "POST", body: JSON.stringify(req) }), !req.dry);
+    // A quote whose signature does not verify may have been altered in transit (deposit address,
+    // amounts): refuse it rather than send a payer to it.
+    if (this.opts.verifySignatures !== false && !verifyQuoteSignature(res)) throw new OneClickError(502, "1Click quote signature did not verify");
+    return res;
   }
 
   async status(depositAddress: string, depositMemo?: string): Promise<StatusResponse> {

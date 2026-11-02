@@ -1,13 +1,13 @@
 # Spec notes
 
-What Penstock relies on, checked against the primary sources on 2026-11-01. Every wire shape used in the code comes from this file. If a source changes, update this file first, then the code.
+What Penstock relies on, checked against the primary sources on 2026-11-01; the 1Click API was re-checked against the official NEAR Intents docs on 2026-11-02. Every wire shape used in the code comes from this file. If a source changes, update this file first, then the code.
 
 ## 1. Hackathon rules (nearhackathon.com/HACKATHON.md)
 
 - Window: 2026-11-01T00:00:00Z to 2026-11-14T23:59:00Z. The repository must be public by the deadline.
 - Track ids that fit Penstock: `realworld` (Real-World Money) and `privacy` (Privacy & Private AI). `agents` (Agent Economy) also fits.
 - Q-005: libraries and AI-assisted code are allowed, but they must be listed in the README.
-- Q-006: a 1Click JWT is optional. Without one, 1Click charges a 0.2% fee. Partner registration is at partners.near-intents.org.
+- Q-006: a 1Click JWT is optional. Partner registration is at partners.near-intents.org. (The official Fees page, checked 2026-11-02, says keyless quotes pay an extra 0.25%; see section 5.)
 - Q-007: NEAR Intents has no testnet. Use mainnet, separate dev accounts, tiny amounts and `dry: true` quotes.
 - Q-012: a local-only demo is fine if the README reproduces it and the X post has a video.
 - Q-014: any license works. Add a LICENSE file. MIT is the choice here.
@@ -85,40 +85,13 @@ Source: the repository README and `examples/resource-server` on 2026-11-01.
 - API keys are approved by hand, per resource server and per payee. Penstock live mode therefore takes `FACILITATOR_URL` and `FACILITATOR_API_KEY` from the environment. Penstock never ships a key.
 - The example resource server pins `@x402/* 2.28.0`. It keeps a separate delivery-idempotency journal, because facilitator idempotency alone does not prevent duplicate application delivery. Penstock does the same.
 
-## 5. near-intents method for `exact` (draft, x402-foundation/x402 PR #3370)
+## 5. 1Click Swap API: the documented integration
 
-Source: PR #3370 "specs(exact): add near-intents `upfront` method" by Iker (GitHub `IkerAlus`). Open, last updated 2026-10-02. File `specs/schemes/exact/scheme_exact_nearintents.md`, read at head commit `2e9dded9aaeb9c58ae93be42705a2bcf5cc19f87`. Penstock pins to this commit and calls it **spec version `nearintents-draft-2e9dded`**. The spec belongs to its authors. Penstock implements it and does not claim it.
 
-Key points:
+This is Penstock's primary, documented NEAR Intents integration. Sources: the official docs at [docs.near-intents.org](https://docs.near-intents.org/) ("1Click Swap API", "Making a Request", "API Keys", "Fees", "Swap SDK", "Verify Quote Signatures", "Confidential Swaps", "Going Live" and the API reference pages, which embed the OpenAPI document `https://1click.chaindefuser.com/docs/v0/openapi.yaml`, `info.version: 0.1.10`), the official TypeScript SDK `@defuse-protocol/one-click-sdk-typescript` 0.1.26 (latest on npm on 2026-11-02), and live calls made on 2026-11-01.
 
-- This is not a new scheme. It is `scheme: "exact"` with `extra.assetTransferMethod: "near-intents"` and `extra.paymentFlow: "upfront"`.
-- `network` is the **origin** network (CAIP-2), with one `accepts[]` entry per offered origin. `asset` is the origin asset.
-- Unquoted entry (first 402): `amount: ""` and `payTo: ""`, plus `extra.indicativeAmount`, which is not binding and comes from a cached `dry: true` quote. It also carries `extra.destination = { network, asset, amount, recipient }`.
-- Quote payload (client → server): `payload = { type: "quote", refundTo, slippageTolerance? }`, where `accepted` is the unquoted entry. A quote payload never unlocks the resource.
-- The facilitator `/verify` mints a quote with one `POST /v0/quote` call: `dry: false`, `swapType: EXACT_OUTPUT`, `depositType: ORIGIN_CHAIN`, `depositMode: MEMO|SIMPLE`, `amount = destination.amount`, `recipient = destination.recipient`, `recipientType: DESTINATION_CHAIN`, `refundTo = payload.refundTo`, `refundType: ORIGIN_CHAIN`, `deadline = now + maxTimeoutSeconds` (this is the refund deadline). Destination terms come from the server's own requirements, never from the payload.
-- `VerifyResponse.extra = { depositAddress, amountIn, refundDeadline, operationToken, depositMemo? }`.
-- Quoted entry (second 402): `amount = amountIn`, `payTo = depositAddress`, `extra.refundDeadline`, `extra.operationToken`, and `extra.depositMemo` when there is one.
-- Deposit payload: `payload = { type: "deposit", operationToken, depositAddress, depositMemo?, txHash }`, where `accepted` is the unquoted entry.
-- `operationToken = <keyId>.<expiry>.<mac>`:
-  - `expiry` = refundDeadline + at least 24 hours, in Unix seconds.
-  - `mac` = unpadded base64url of `HMAC-SHA256(key, network:depositAddress[:depositMemo]:resource:destinationHash:expiry)`.
-  - `destinationHash` = lowercase hex SHA-256 of `network:asset:amount:recipient` from `paymentRequirements.extra.destination`.
-  - The token needs no storage. It is a bearer credential and must never appear on chain or in receipts.
-- `/settle` steps: structural checks → token check (expired, then MAC) → return the recorded result if one exists → `GET /v0/status` and compare `quoteResponse.quoteRequest` recipient, asset and amount against the destination → claim exactly once (the claim expires) → check the deposit tx → optional `POST /v0/deposit/submit` → poll status.
-  - Valid only when `status == SUCCESS` and `txHash` is in `swapDetails.originChainTxHashes[].hash`.
-  - `REFUNDED` and `FAILED` are terminal failures.
-  - `KNOWN_DEPOSIT_TX`, `PENDING_DEPOSIT`, `PROCESSING` and `INCOMPLETE_DEPOSIT` are not terminal. In that case return `success:false, errorReason:"settlement_pending"`, release the claim, and the client retries with the same token.
-- Success response: `network`/`transaction` are the destination delivery. `extra = { originNetwork, originTxHash }`, and `amount = destination.amount`.
-- Error codes: `invalid_exact_near_intents_quote_unavailable`, `_token_invalid`, `_token_expired`, `_quote_mismatch`, `_deposit_not_found`, `exact_near_intents_insufficient_deposit`, `exact_near_intents_payment_failed`, `exact_near_intents_operation_executed`.
-- Resource server: records each quoted operation for at least 24 hours after `refundDeadline`. It executes the handler once per operation, marked atomically.
-- Refunds: 1Click refunds `refundTo` on the origin chain directly. No facilitator holds client funds.
-- Trust: settlement is not trustless. The 1Click backend holds funds between deposit and delivery.
-
-## 6. 1Click API (NEAR Intents)
-
-Sources: `https://1click.chaindefuser.com/docs/v0/openapi.yaml` (`info.version: 0.1.10`), docs.near-intents.org pages "Swap Types", "Confidential Swaps" and "Verify Quote Signatures", and live calls made on 2026-11-01.
-
-- Base URL: `https://1click.chaindefuser.com`. Auth is optional: header `X-API-Key` or `Authorization: Bearer <JWT>`.
+- Base URL: `https://1click.chaindefuser.com`. Auth is optional: a partner JWT in the `X-API-Key` header (recommended by the OpenAPI document; `Authorization: Bearer` is accepted and marked legacy). Penstock sends `X-API-Key`.
+- Fees (Fees page): without a key, 1Click adds 0.25% (25 bps) to every non-`ANY_INPUT` quote. With a key and no `appFees`: 0.20%, or 0.01% on stablecoin pairs and same-asset multichain routes. Protocol fee 0.0001% on top.
 - `GET /v0/tokens` → `TokenResponse[]`: `{ assetId, decimals, blockchain, symbol, price, priceUpdatedAt, contractAddress?, coingeckoId? }`. Live on 2026-11-01: 210 tokens on 38 chains.
 - `POST /v0/quote`: body `QuoteRequest`.
   - Required: `dry, swapType (EXACT_INPUT|EXACT_OUTPUT|FLEX_INPUT|ANY_INPUT), slippageTolerance (bps), originAsset, depositType (ORIGIN_CHAIN|INTENTS|CONFIDENTIAL_INTENTS), destinationAsset, amount (base-unit integer string), refundTo, refundType, recipient, recipientType (DESTINATION_CHAIN|INTENTS|CONFIDENTIAL_INTENTS), deadline (ISO)`.
@@ -130,7 +103,8 @@ Sources: `https://1click.chaindefuser.com/docs/v0/openapi.yaml` (`info.version: 
   - `swapDetails`: `{ intentHashes[], nearTxHashes[], amountIn?, amountOut?, originChainTxHashes[{hash, explorerUrl}], destinationChainTxHashes[{hash, explorerUrl}], refundedAmount?, refundReason?, depositedAmount?, ... }`.
   - Unknown address → HTTP 404 `{ message, error: "Not Found", statusCode: 404, ... }` (seen live).
 - `POST /v0/deposit/submit`: `{ txHash, depositAddress, nearSenderAccount?, memo? }`. Responds with the same shape as status.
-- Quote signature: `signature` is `ed25519:<base58>` over base58(SHA-256(stable-stringify({...quoteRequest, ...quote, timestamp}))). `verifyQuoteSignature()` in `@defuse-protocol/one-click-sdk-typescript` ≥ 0.1.24 checks it.
+- Quote signature: `signature` is `ed25519:<base58>` over the UTF-8 string base58(SHA-256(json-stable-stringify({...signedRequestFields, ...signedQuoteFields, timestamp}))), checked with the manager key `ed25519:reYaWhvwu8Jzo3WUM3zhn6VrhuMEF4eADL17qtRVifc` (SDK 0.1.26, `verifyQuoteSignature()`, available since 0.1.24). The SDK signs a fixed subset of fields: dry quotes cover the request fields and the eight amount fields; non-dry quotes add `depositAddress`, `depositMemo`, `deadline`, `timeWhenInactive`, `timeEstimate`, `refundFee` and `withdrawFee`. Penstock's `quote-signature.ts` mirrors that list exactly and verifies both recorded live quotes in the fixtures.
+- There is no testnet (Swap SDK page). "Allow up to 15 minutes for cross-chain processing" (Going Live page).
 - USDC asset ids (live token list): NEAR `nep141:17208628f84f5d6ad33f0da3bbbeb27ffcb398eac501a31bd6ad2011e36133a1`, Arbitrum `nep141:arb-0xaf88d065e77c8cc2239327c5edb3a432268e5831.omft.near`, Base `nep141:base-0x833589fcd6edb6e08f4c7c32d4f71b54bda02913.omft.near`, Ethereum `nep141:eth-0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48.omft.near`, Solana `nep141:sol-5ce3bf3a31af18be40ba30f721101b4341690186.omft.near`. Native: `nep141:eth.omft.near`, `nep141:sol.omft.near`, `nep141:btc.omft.near`, `nep141:wrap.near`.
 
 Observed live, 2026-11-01:
@@ -161,9 +135,57 @@ Route minimums, observed live on 2026-11-01. This matters most for micro-payment
 
 Recorded responses are stored as contract-test fixtures in `packages/intents-adapter/fixtures/`.
 
+Verified against the official docs on 2026-11-02:
+
+| What | Official docs | Penstock | Result |
+| --- | --- | --- | --- |
+| API version | OpenAPI `info.version` 0.1.10 | `ONECLICK_API_VERSION = "0.1.10"` | match |
+| Base URL | `https://1click.chaindefuser.com` | `ONECLICK_BASE_URL` default | match |
+| `GET /v0/tokens` | `assetId, decimals, blockchain, symbol, price, priceUpdatedAt, contractAddress` | `TokenResponse` | match |
+| `POST /v0/quote` required fields | 12 fields listed above | `QuoteRequest` | match |
+| `POST /v0/quote` optional fields used | `depositMode`, `confidentiality` | sent | match (others unused) |
+| `QuoteResponse` / `Quote` | fields listed above; no `depositAddress`, `deadline`, `timeWhenInactive` on dry quotes | `assertQuoteResponse` | match |
+| `GET /v0/status` | `depositAddress`, optional `depositMemo`; 7 statuses; terminal `SUCCESS`, `REFUNDED`, `FAILED` | `status()`, `TERMINAL_STATUSES` | match |
+| `swapDetails` | `originChainTxHashes`, `destinationChainTxHashes`, `refundedAmount`, `refundReason`, `depositedAmount`, ... | `SwapDetails` | match |
+| `POST /v0/deposit/submit` | `txHash, depositAddress, nearSenderAccount?, memo?` | `SubmitDepositTxRequest` | match |
+| Auth header | `X-API-Key` (Bearer legacy) | was `Authorization: Bearer` | **fixed**: now `X-API-Key` |
+| Keyless fee | +0.25% per quote | README said "keyless fee", notes said 0.2% | **fixed** in README, `.env.example` and here |
+| Quote signatures | documented, manager key in the SDK | were not verified | **fixed**: verified on every real quote; a bad signature refuses the quote |
+| Confidential quotes | `confidentiality: basic\|advanced` on a normal quote; 401 without auth | same | match |
+
+
+## 6. near-intents transfer method (unofficial draft)
+
+How Penstock expresses a cross-chain payment in x402 terms follows an **unofficial community draft** of an x402 near-intents transfer method (by Iker, GitHub `IkerAlus`, discussed in the x402 repository). It is not an official x402 scheme, it may change or be withdrawn, and Penstock makes **no conformance claim**: it follows the draft where that helps interoperability and is not pinned to any revision of it. The points below record what Penstock implements. All of it lives in `packages/intents-adapter` (`method.ts`, `token.ts`, `client.ts`); the rest of Penstock sees only the generic payment-method interface, and settlement itself uses the documented 1Click API in section 5. Discovery labels this method `spec: "unofficial-draft"`.
+
+As implemented:
+
+- This is not a new scheme. It is `scheme: "exact"` with `extra.assetTransferMethod: "near-intents"` and `extra.paymentFlow: "upfront"`.
+- `network` is the **origin** network (CAIP-2), with one `accepts[]` entry per offered origin. `asset` is the origin asset.
+- Unquoted entry (first 402): `amount: ""` and `payTo: ""`, plus `extra.indicativeAmount`, which is not binding and comes from a cached `dry: true` quote. It also carries `extra.destination = { network, asset, amount, recipient }`.
+- Quote payload (client → server): `payload = { type: "quote", refundTo, slippageTolerance? }`, where `accepted` is the unquoted entry. A quote payload never unlocks the resource.
+- The facilitator `/verify` mints a quote with one `POST /v0/quote` call: `dry: false`, `swapType: EXACT_OUTPUT`, `depositType: ORIGIN_CHAIN`, `depositMode: MEMO|SIMPLE`, `amount = destination.amount`, `recipient = destination.recipient`, `recipientType: DESTINATION_CHAIN`, `refundTo = payload.refundTo`, `refundType: ORIGIN_CHAIN`, `deadline = now + maxTimeoutSeconds` (this is the refund deadline). Destination terms come from the server's own requirements, never from the payload.
+- `VerifyResponse.extra = { depositAddress, amountIn, refundDeadline, operationToken, depositMemo? }`.
+- Quoted entry (second 402): `amount = amountIn`, `payTo = depositAddress`, `extra.refundDeadline`, `extra.operationToken`, and `extra.depositMemo` when there is one.
+- Deposit payload: `payload = { type: "deposit", operationToken, depositAddress, depositMemo?, txHash }`, where `accepted` is the unquoted entry.
+- `operationToken = <keyId>.<expiry>.<mac>`:
+  - `expiry` = refundDeadline + at least 24 hours, in Unix seconds.
+  - `mac` = unpadded base64url of `HMAC-SHA256(key, network:depositAddress[:depositMemo]:resource:destinationHash:expiry)`.
+  - `destinationHash` = lowercase hex SHA-256 of `network:asset:amount:recipient` from `paymentRequirements.extra.destination`.
+  - The token needs no storage. It is a bearer credential and must never appear on chain or in receipts.
+- `/settle` steps: structural checks → token check (expired, then MAC) → return the recorded result if one exists → `GET /v0/status` and compare `quoteResponse.quoteRequest` recipient, asset and amount against the destination → claim exactly once (the claim expires) → check the deposit tx → optional `POST /v0/deposit/submit` → poll status.
+  - Valid only when `status == SUCCESS` and `txHash` is in `swapDetails.originChainTxHashes[].hash`.
+  - `REFUNDED` and `FAILED` are terminal failures.
+  - `KNOWN_DEPOSIT_TX`, `PENDING_DEPOSIT`, `PROCESSING` and `INCOMPLETE_DEPOSIT` are not terminal. In that case return `success:false, errorReason:"settlement_pending"`, release the claim, and the client retries with the same token.
+- Success response: `network`/`transaction` are the destination delivery. `extra = { originNetwork, originTxHash }`, and `amount = destination.amount`.
+- Error codes: `invalid_exact_near_intents_quote_unavailable`, `_token_invalid`, `_token_expired`, `_quote_mismatch`, `_deposit_not_found`, `exact_near_intents_insufficient_deposit`, `exact_near_intents_payment_failed`, `exact_near_intents_operation_executed`.
+- Resource server: records each quoted operation for at least 24 hours after `refundDeadline`. It executes the handler once per operation, marked atomically.
+- Refunds: 1Click refunds `refundTo` on the origin chain directly. No facilitator holds client funds.
+- Trust: settlement is not trustless. The 1Click backend holds funds between deposit and delivery.
+
 ## 7. Confidential routes (shielded-payer mode)
 
-- Confidential Intents, foreign-to-foreign: a normal `ORIGIN_CHAIN` → `DESTINATION_CHAIN` quote with `confidentiality: basic|advanced`. The deposit and the withdrawal cannot be linked. This needs an authenticated 1Click call (see above).
+- Confidential Intents, foreign-to-foreign: a normal `ORIGIN_CHAIN` → `DESTINATION_CHAIN` quote with `confidentiality: basic|advanced`. The deposit and the withdrawal cannot be linked. This needs an authenticated 1Click call (see section 5).
 - What it hides: the link between the payer's origin deposit and the delivery. What it does not hide: the delivery to the seller on NEAR is still a public transfer, so seller revenue stays visible.
 - Aurora: an EVM chain on NEAR (doc.aurora.dev). Penstock treats an Aurora confidentiality route as an optional adapter behind the same interface. It is disabled unless configured, and the UI then shows "not enabled".
 

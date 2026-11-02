@@ -28,7 +28,8 @@ describe("HttpOneClick against recorded 1Click responses (API 0.1.10)", () => {
     expect(q.quote).toMatchObject({ amountIn: "1010224", minAmountIn: "1000121", amountOut: "1000000", timeEstimate: 25 });
     expect(q.quote.depositAddress).toBeUndefined();
     expect(calls[0]!.url).toBe("https://1click.example/v0/quote");
-    expect((calls[0]!.init.headers as Record<string, string>).authorization).toBe("Bearer test-jwt");
+    expect((calls[0]!.init.headers as Record<string, string>)["x-api-key"]).toBe("test-jwt");
+    expect((calls[0]!.init.headers as Record<string, string>).authorization).toBeUndefined();
     const sent = JSON.parse(String(calls[0]!.init.body));
     for (const k of ["dry", "swapType", "slippageTolerance", "originAsset", "depositType", "destinationAsset", "amount", "refundTo", "refundType", "recipient", "recipientType", "deadline"]) {
       expect(sent).toHaveProperty(k);
@@ -79,7 +80,8 @@ describe("DryOneClick", () => {
     const fresh = JSON.parse(fx("quote-dry-exact-output-arb-usdc.json"));
     fresh.quoteRequest.deadline = new Date(Date.now() + 300_000).toISOString();
     const { f, calls } = replay(201, JSON.stringify(fresh));
-    const dry = new DryOneClick(new HttpOneClick({ baseUrl: "https://x", fetchImpl: f }));
+    // The recorded quote is edited (fresh deadline), so its 1Click signature no longer verifies.
+    const dry = new DryOneClick(new HttpOneClick({ baseUrl: "https://x", fetchImpl: f, verifySignatures: false }));
     const tokens = replay(200, fx("tokens.2026-11-01.json"));
     (dry as unknown as { real: { tokens: () => Promise<unknown> } }).real.tokens = () => new HttpOneClick({ baseUrl: "https://x", fetchImpl: tokens.f }).tokens();
     const q = await dry.quote({ ...recordedRequest, dry: false, deadline: new Date(Date.now() + 300_000).toISOString() });

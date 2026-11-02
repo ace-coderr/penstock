@@ -9,8 +9,9 @@ import { mintOperationToken, verifyOperationToken, type Destination, type KeyRin
 import type { IndicativePricer } from "./pricing";
 
 /**
- * x402 `exact` with `extra.assetTransferMethod: "near-intents"` and `paymentFlow: "upfront"`,
- * implementing the draft at x402-foundation/x402 PR #3370 (head 2e9dded, author: Iker / IkerAlus).
+ * x402 `exact` with `extra.assetTransferMethod: "near-intents"` and `paymentFlow: "upfront"`.
+ * The wire shape follows an unofficial community draft where it helps (no conformance claim);
+ * settlement uses the documented 1Click Swap API.
  * Penstock acts as both resource server and facilitator for this method. Funds go from the
  * buyer's origin chain into a single-use 1Click deposit address and are delivered as USDC
  * directly to the seller's NEAR account; failed swaps are refunded by 1Click to `refundTo`.
