@@ -9,7 +9,6 @@ export interface LiveEnv {
   sellerAccount: string;
   payerAddress: string;
   payerSecret: string;
-  sellerSecret: string;
   oneClickJwt: string;
   oneClickBaseUrl: string;
   solanaRpc: string;
@@ -25,7 +24,6 @@ export function readLiveEnv(env: NodeJS.ProcessEnv = process.env): LiveEnv {
     sellerAccount: v("SELLER_NEAR_ACCOUNT"),
     payerAddress: v("PAYER_SOLANA_ADDRESS"),
     payerSecret: v("PAYER_SOLANA_PRIVATE_KEY"),
-    sellerSecret: v("SELLER_NEAR_PRIVATE_KEY"),
     oneClickJwt: v("ONECLICK_JWT"),
     oneClickBaseUrl: v("ONECLICK_BASE_URL", "https://1click.chaindefuser.com"),
     solanaRpc: v("SOLANA_RPC_URL", "https://api.mainnet-beta.solana.com"),

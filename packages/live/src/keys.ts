@@ -1,9 +1,8 @@
 /**
- * Key checks that never reveal the key: each function returns only public facts (does the secret
- * match this address, what is its public key).
+ * Key checks that never reveal the key: they return only public facts (does the secret match this
+ * address).
  */
 import { createPrivateKey, createPublicKey } from "node:crypto";
-import { KeyPair, type KeyPairString } from "@near-js/crypto";
 import { base58Decode, base58Encode } from "@penstock/intents-adapter";
 
 const PKCS8_ED25519 = Buffer.from("302e020100300506032b657004220420", "hex");
@@ -31,14 +30,5 @@ export function isSolanaAddress(a: string): boolean {
     return base58Decode(a).length === 32;
   } catch {
     return false;
-  }
-}
-
-/** `ed25519:...` public key for a NEAR secret key, or null if malformed. */
-export function nearPublicKeyOf(secret: string): string | null {
-  try {
-    return KeyPair.fromString(secret as KeyPairString).getPublicKey().toString();
-  } catch {
-    return null;
   }
 }

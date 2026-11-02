@@ -1,8 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { generateKeyPairSync } from "node:crypto";
-import { KeyPair } from "@near-js/crypto";
 import { base58Encode } from "@penstock/intents-adapter";
-import { SpendCapError, assertWithinCap, nearPublicKeyOf, readLiveEnv, solanaAddressOf } from "../src/index";
+import { SpendCapError, assertWithinCap, readLiveEnv, solanaAddressOf } from "../src/index";
 
 function solanaKeypair() {
   const { publicKey, privateKey } = generateKeyPairSync("ed25519");
@@ -36,11 +35,5 @@ describe("key checks reveal only public facts", () => {
     expect(solanaAddressOf(base58Encode(Buffer.concat([k.seed, other.pub])))).toBeNull();
     expect(solanaAddressOf("not-base58-0OIl")).toBeNull();
     expect(solanaAddressOf(k.address)).toBeNull();
-  });
-
-  it("returns the NEAR public key for a NEAR secret key", () => {
-    const kp = KeyPair.fromRandom("ed25519");
-    expect(nearPublicKeyOf(kp.toString())).toBe(kp.getPublicKey().toString());
-    expect(nearPublicKeyOf("ed25519:short")).toBeNull();
   });
 });

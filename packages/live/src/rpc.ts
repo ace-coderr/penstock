@@ -1,4 +1,4 @@
-/** Minimal JSON-RPC reads for NEAR and Solana mainnet. Read-only except `nearSendTx`. */
+/** Minimal read-only JSON-RPC calls for NEAR and Solana mainnet. */
 
 export const NEAR_USDC = "17208628f84f5d6ad33f0da3bbbeb27ffcb398eac501a31bd6ad2011e36133a1";
 export const SOLANA_USDC_MINT = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
@@ -32,25 +32,6 @@ export async function nearView<T>(url: string, contract: string, method: string,
     args_base64: Buffer.from(JSON.stringify(args)).toString("base64"),
   });
   return JSON.parse(Buffer.from(r.result).toString()) as T;
-}
-
-export interface AccessKey { nonce: number; permission: "FullAccess" | object; block_hash: string }
-
-export async function nearAccessKey(url: string, accountId: string, publicKey: string): Promise<AccessKey | null> {
-  try {
-    return await rpc<AccessKey>(url, "query", { request_type: "view_access_key", finality: "final", account_id: accountId, public_key: publicKey });
-  } catch (e) {
-    if (/UNKNOWN_ACCESS_KEY|does not exist/i.test(String(e))) return null;
-    throw e;
-  }
-}
-
-/** Broadcasts a signed transaction and waits for it to be final. Returns the transaction hash. */
-export async function nearSendTx(url: string, signedTxBase64: string): Promise<{ hash: string; ok: boolean; failure?: unknown }> {
-  const r = await rpc<{ transaction: { hash: string }; status: { SuccessValue?: string; Failure?: unknown } }>(
-    url, "send_tx", { signed_tx_base64: signedTxBase64, wait_until: "FINAL" }, 120_000,
-  );
-  return { hash: r.transaction.hash, ok: r.status.Failure === undefined, failure: r.status.Failure };
 }
 
 export async function solanaLamports(url: string, address: string): Promise<bigint> {
