@@ -7,6 +7,10 @@ import { HeroStage } from "./components/HeroStage";
 import { PaymentReplay } from "./components/PaymentReplay";
 import { moneyUsd, units } from "./format";
 import { useCountUp, useReveal } from "./motion";
+import { useProof } from "./proof";
+import { RealBadge } from "./components/OnChain";
+import { RealTransactions } from "./components/RealTransactions";
+import { ReceiptVerifier } from "./components/ReceiptVerifier";
 
 const REPO = "https://github.com/ace-coderr/penstock";
 
@@ -109,7 +113,41 @@ function Proof() {
           <span className="sim-inline">simulated demo data</span>
         </div>
       ))}
+      <RealStat seen={seen} />
     </div>
+  );
+}
+
+/** One real number, counted from the real transactions in proof.json. */
+function RealStat({ seen }: { seen: boolean }) {
+  const { proof } = useProof();
+  if (!proof) return null;
+  const payments = proof.entries.filter((e) => e.kind === "payment").length;
+  const refunds = proof.entries.filter((e) => e.kind === "refund").length;
+  return (
+    <a href="#real" className={`proof-item proof-real reveal${seen ? " is-in" : ""}`} style={{ "--i": 3 } as React.CSSProperties}>
+      <div className="proof-n">{payments} + {refunds}</div>
+      <div className="proof-l">real mainnet payment{payments === 1 ? "" : "s"} and refund{refunds === 1 ? "" : "s"}, with explorer links</div>
+      <RealBadge />
+    </a>
+  );
+}
+
+function RealSection() {
+  const { proof, error } = useProof();
+  return (
+    <Section id="real" eyebrow="Real transactions" title={<>Not a mockup: <em>one real payment, one real refund</em></>} intro="Everything above the fold is simulated demo data. These two are not: they happened on Solana and NEAR mainnet, every step links to a public explorer, and the payment's signed receipt is verified here in your browser.">
+      {error ? <p className="faint">The proof record did not load. The same transactions are in <a href={`${REPO}/blob/main/docs/PROOF.md`}>docs/PROOF.md</a>.</p> : !proof ? <div className="skeleton" style={{ height: 160 }} /> : (
+        <div className="l-real">
+          <RealTransactions proof={proof} />
+          <ReceiptVerifier receipt={proof.entries.find((e) => e.receipt)!.receipt!} />
+          <p className="l-real-links">
+            <a className="btn btn-primary" href="/app#/?view=real">Open the Real view in the console</a>
+            <a className="btn btn-ghost" href={`${REPO}/blob/main/docs/PROOF.md`}>Read PROOF.md</a>
+          </p>
+        </div>
+      )}
+    </Section>
   );
 }
 
@@ -126,6 +164,7 @@ export function Landing() {
           <a href="/" className="mark" aria-label="Penstock home"><Wordmark size={24} /></a>
           <nav className="l-links" aria-label="Site">
             <a href="#how">How it works</a>
+            <a href="#real">Real transactions</a>
             <a href={`${REPO}#readme`}>Docs</a>
             <a href="/app">Demo</a>
           </nav>
@@ -144,7 +183,7 @@ export function Landing() {
                 <a className="btn btn-primary" href="/app">Open the demo console</a>
                 <a className="btn btn-ghost" href="#how">How it works</a>
               </div>
-              <p className="l-note mono rise" style={{ "--i": 4 } as React.CSSProperties}>{STATIC_DEMO ? "This hosted demo runs entirely in your browser on simulated data. Run it locally for the real flow." : "The demo runs locally with simulated payments: no keys, no funds, no network."}</p>
+              <p className="l-note mono rise" style={{ "--i": 4 } as React.CSSProperties}>{STATIC_DEMO ? "This hosted demo runs in your browser on simulated data, except the real mainnet transactions." : "The demo runs locally with simulated payments: no keys, no funds, no network."} <a href="#real">See the real payment and refund →</a></p>
             </div>
             <figure className="l-hero-art rise" style={{ "--i": 2 } as React.CSSProperties}>
               <HeroStage />
@@ -182,6 +221,8 @@ export function Landing() {
           <Section eyebrow="From the demo ledger" title="What the demo has seen" intro="Read live from the seeded demo ledger when the demo is running. None of these are real transactions.">
             <Proof />
           </Section>
+
+          <RealSection />
 
           <Section id="payment" eyebrow="How a payment works" title="One request, one 402, one payment from anywhere" intro="The agent never needs USDC on NEAR. It pays from the chain and token it already holds; NEAR Intents delivers USDC to the seller, and the retried request returns 200 with a signed receipt.">
             <PaymentReplay />
