@@ -3,8 +3,20 @@ import { Bars, Flow } from "../components/Flow";
 import { Chain, Empty, ErrorState, Loading, Money, PageHead, Section, Sim, Status } from "../components/bits";
 import { ago, money, moneyUsd, originAmount, pct } from "../format";
 import { useCountUp, useNewIds } from "../motion";
+import { RealView } from "../components/RealView";
+import { ViewSwitch, useView } from "../components/ViewSwitch";
 
 export function Ledger({ overview }: { overview: Overview }) {
+  const [view, setView] = useView();
+  return (
+    <>
+      <ViewSwitch view={view} onChange={setView} />
+      {view === "real" ? <RealView tab="ledger" /> : <SimulatedLedger overview={overview} />}
+    </>
+  );
+}
+
+function SimulatedLedger({ overview }: { overview: Overview }) {
   const o = overview;
   const latest = useApi<{ payments: Payment[] }>("/payments?limit=8", 4000);
   const fresh = useNewIds(latest.data?.payments.map((p) => p.id));

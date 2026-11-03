@@ -3,8 +3,9 @@
  * first). Exits non-zero on any failure. Checks:
  *   - no keys, tokens, credentials or personal data in any shipped file;
  *   - no data: URIs (the CSP allows same-origin assets only) and no server API code;
- *   - the only network call sites are same-origin (module preload, /demo-snapshot.json);
- *   - _headers carries the CSP with connect-src 'self'; _redirects rewrites /app routes;
+ *   - network calls are same-origin (module preload, /demo-snapshot.json, /proof.json) or one of
+ *     the two allowlisted NEAR RPCs, and the CSP connect-src lists exactly those origins;
+ *   - _redirects rewrites /app routes;
  *   - reduced-motion rules made it into the bundled CSS;
  *   - share basics: SVG favicon, 1200x630 social card PNG, title, description, Open Graph and Twitter tags;
  *   - proof.json (the real mainnet transactions) is present, unsimulated, and links only to explorers;
@@ -58,13 +59,28 @@ const bundle = assets.map(read).join("\n");
 check(!/url\(data:/.test(bundle), "no data: URIs in CSS");
 check(!/\/api\/(admin|public)/.test(bundle), "no server API paths in the bundle");
 check(!/Bearer /.test(bundle) && !/localStorage/.test(bundle), "no token handling or browser storage in the bundle");
+// The only cross-origin calls allowed: two public NEAR mainnet RPCs for read-only chain data.
+const RPC_ALLOW = ["https://rpc.mainnet.fastnear.com", "https://rpc.mainnet.near.org"];
 const fetches = [...bundle.matchAll(/fetch\(([^)]{0,80})\)/g)].map((m) => m[1]!);
 const sameOrigin = (a: string) => /^`\/[^/]/.test(a) || /^"\/[^/]/.test(a) || /^[a-z]\.href,/.test(a) || /^[a-z]{1,2}\.href/.test(a);
-check(fetches.length > 0 && fetches.every(sameOrigin), "every fetch() is same-origin", fetches.join(" | "));
+// RPC calls take their URL from the one RPC list literal in the bundle (quoted with " or `).
+const rpcLists = (bundle.match(/\[["`]https:\/\/[^"`\]]+["`](?:,["`]https:\/\/[^"`\]]+["`])*\]/g) ?? []).filter((l) => l.includes("rpc"));
+const rpcListOk = rpcLists.length === 1 && JSON.stringify(JSON.parse(rpcLists[0]!.replace(/`/g, '"'))) === JSON.stringify(RPC_ALLOW);
+const viaVariable = fetches.filter((x) => !sameOrigin(x));
+check(
+  fetches.length > 0 && viaVariable.length <= 1 && viaVariable.every((x) => /^[A-Za-z_$][\w$]*,/.test(x)) && rpcListOk,
+  "every fetch() is same-origin or one of the two allowlisted NEAR RPCs",
+  `${fetches.join(" | ")}; rpc list ${rpcLists.join(" ") || "missing"}`,
+);
 check(!/new WebSocket|sendBeacon|new EventSource|XMLHttpRequest/.test(bundle), "no WebSocket, beacon, EventSource or XHR");
 
 const headers = read(join(dist, "_headers"));
-check(/connect-src 'self'/.test(headers) && /default-src 'self'/.test(headers) && /font-src 'self'/.test(headers), "_headers sets a same-origin CSP");
+const connect = (/Content-Security-Policy:[^\n]*connect-src ([^;]+);/.exec(headers)?.[1] ?? "").trim().split(/\s+/).sort();
+check(
+  JSON.stringify(connect) === JSON.stringify(["'self'", ...RPC_ALLOW].sort()) && /default-src 'self'/.test(headers) && /font-src 'self'/.test(headers),
+  "_headers CSP: connect-src is exactly 'self' plus the two NEAR RPCs",
+  connect.join(" "),
+);
 const redirects = read(join(dist, "_redirects"));
 check(/^\/app\s+\/\s+200/m.test(redirects) && /^\/app\/\*\s+\/\s+200/m.test(redirects), "_redirects rewrites /app routes to the app shell");
 check(!files.some((f) => /404\.html$/.test(f)), "no 404.html, so single-page-application not_found_handling applies");

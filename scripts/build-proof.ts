@@ -72,11 +72,26 @@ const refundTx = (rd.originChainTxHashes as { hash: string }[]).map((t) => t.has
 const dest = paid.unquoted.extra.destination;
 const rdest = refunded.unquoted.extra.destination;
 
+// Last known on-chain state of the seller, shown by the site (labelled cached) if no RPC answers.
+const view = async (method: string, args: object) =>
+  JSON.parse(Buffer.from((await rpc(NEAR_RPC, "query", { request_type: "call_function", finality: "final", account_id: NEAR_USDC, method_name: method, args_base64: Buffer.from(JSON.stringify(args)).toString("base64") })).result).toString());
+const sellerAccount = paid.unquoted.extra.destination.recipient as string;
+const acct = await rpc(NEAR_RPC, "query", { request_type: "view_account", finality: "final", account_id: sellerAccount });
+const seller = {
+  account: sellerAccount,
+  snapshotAt: new Date().toISOString(),
+  exists: !!acct,
+  usdcBalance: (await view("ft_balance_of", { account_id: sellerAccount })) as string,
+  storageRegistered: (await view("storage_balance_of", { account_id: sellerAccount })) !== null,
+  source: NEAR_RPC,
+};
+
 const proof = {
   $comment: "Real mainnet transactions, nothing simulated. Human-readable source: docs/PROOF.md (checked by apps/console/test/proof.test.ts).",
   simulated: false,
   accounts: { payer: { chain: "solana", address: paid.result.receipt.body.payer }, seller: { chain: "near", account: dest.recipient } },
   nearUsdcContract: NEAR_USDC,
+  seller,
   entries: [
     {
       id: "payment-1",

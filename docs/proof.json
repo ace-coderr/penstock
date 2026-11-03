@@ -12,6 +12,14 @@
     }
   },
   "nearUsdcContract": "17208628f84f5d6ad33f0da3bbbeb27ffcb398eac501a31bd6ad2011e36133a1",
+  "seller": {
+    "account": "acedevv.near",
+    "snapshotAt": "2026-11-03T05:49:46.730Z",
+    "exists": true,
+    "usdcBalance": "10000",
+    "storageRegistered": true,
+    "source": "https://rpc.mainnet.fastnear.com"
+  },
   "entries": [
     {
       "id": "payment-1",
@@ -104,7 +112,7 @@
       "depositAddress": "8nEavKXihjS9Vrxtvf1V1fANr91a2crsNHaexGjcnmFY",
       "oneClick": {
         "status": "REFUNDED",
-        "correlationId": "14bcee7f-3231-4055-b0f1-40992c9a288b",
+        "correlationId": "6d4cc83c-fce3-45cb-9cc9-55f9d422b199",
         "updatedAt": "2026-11-02T23:03:26.000Z",
         "refundReason": "AMOUNT_MORE_THAN_BALANCE"
       },
