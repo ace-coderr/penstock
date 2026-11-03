@@ -7,6 +7,7 @@
  *   - _headers carries the CSP with connect-src 'self'; _redirects rewrites /app routes;
  *   - reduced-motion rules made it into the bundled CSS;
  *   - share basics: SVG favicon, 1200x630 social card PNG, title, description, Open Graph and Twitter tags;
+ *   - proof.json (the real mainnet transactions) is present, unsimulated, and links only to explorers;
  *   - every snapshot row is flagged simulated and every hash is a "sim" value.
  */
 import { readdirSync, readFileSync, statSync } from "node:fs";
@@ -83,6 +84,10 @@ const missing = meta.filter((m) => !new RegExp(`(property|name)="${m}" content="
 check(missing.length === 0, "title, description, theme-color, Open Graph and Twitter tags", missing.join(", "));
 const images = [...html.matchAll(/(?:og|twitter):image" content="([^"]+)"/g)].map((m) => m[1]!);
 check(images.every((u) => u.endsWith("/social-card.png") && !u.includes("%")), "card URL points at the same-origin social-card.png", images.join(" | "));
+
+const proof = JSON.parse(read(join(dist, "proof.json"))) as { simulated: boolean; entries: { steps: { url: string }[] }[] };
+const proofUrls = proof.entries.flatMap((e) => e.steps.map((s) => s.url));
+check(proof.simulated === false && proofUrls.length > 0 && proofUrls.every((u) => /^https:\/\/(solscan\.io\/tx|nearblocks\.io\/txns)\//.test(u)), "proof.json holds real transactions with explorer links only", `${proofUrls.length} links`);
 
 const snap = JSON.parse(read(join(dist, "demo-snapshot.json"))) as { payments: { simulated: boolean; originTx: string | null; destTx: string | null }[]; sessions: { simulated: boolean }[] };
 check(snap.payments.every((p) => p.simulated) && snap.sessions.every((s) => s.simulated), "every snapshot row is flagged simulated", `${snap.payments.length} payments`);

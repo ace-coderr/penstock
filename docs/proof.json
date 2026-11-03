@@ -1,0 +1,143 @@
+{
+  "$comment": "Real mainnet transactions, nothing simulated. Human-readable source: docs/PROOF.md (checked by apps/console/test/proof.test.ts).",
+  "simulated": false,
+  "accounts": {
+    "payer": {
+      "chain": "solana",
+      "address": "Cp4TVsDsqTY18nEvSBYpqUWpkJYaQ6kNdUx6qcAAYMB3"
+    },
+    "seller": {
+      "chain": "near",
+      "account": "acedevv.near"
+    }
+  },
+  "nearUsdcContract": "17208628f84f5d6ad33f0da3bbbeb27ffcb398eac501a31bd6ad2011e36133a1",
+  "entries": [
+    {
+      "id": "payment-1",
+      "kind": "payment",
+      "date": "2026-11-02",
+      "title": "x402 payment from Solana, settled as USDC on NEAR",
+      "endpoint": "GET /p/tidewater/tides-now",
+      "http": 200,
+      "priceUsdc": "0.010000",
+      "paidUsdc": "0.014949",
+      "usedUsdc": "0.014847",
+      "deliveredUsdc": "0.010000",
+      "feesUsdc": "0.004949",
+      "depositAddress": "GhEoS7T28yza7yTVHYx86GouxUauVgPxGg9ip96ygBsG",
+      "oneClick": {
+        "status": "SUCCESS",
+        "correlationId": "6df62868-c4cb-4e8a-88bf-754cdee0ffc9",
+        "updatedAt": "2026-11-02T22:47:14.000Z"
+      },
+      "steps": [
+        {
+          "label": "Deposit on Solana",
+          "at": "2026-11-02T22:45:40.000Z",
+          "chain": "solana",
+          "hash": "56542cnAqGL58AzFZxoWEzESCNrAe8uzGdu2bT6JUKPyCwVypwQFMYEMk3qGGGJBeKUeHMqrqAg21NZxsVDqPHSg",
+          "url": "https://solscan.io/tx/56542cnAqGL58AzFZxoWEzESCNrAe8uzGdu2bT6JUKPyCwVypwQFMYEMk3qGGGJBeKUeHMqrqAg21NZxsVDqPHSg"
+        },
+        {
+          "label": "Bridged into NEAR (Omni Bridge)",
+          "at": "2026-11-02T22:46:42.820Z",
+          "chain": "near",
+          "hash": "7sd4k8WUQEdNeJbXbiwo4J1t3PSCgFrAMhKkja2TTXNn",
+          "url": "https://nearblocks.io/txns/7sd4k8WUQEdNeJbXbiwo4J1t3PSCgFrAMhKkja2TTXNn"
+        },
+        {
+          "label": "Swap in NEAR Intents",
+          "at": "2026-11-02T22:46:50.451Z",
+          "chain": "near",
+          "hash": "ESSqz2Hn2CMbvuL74j34YjGk2Bexw5xd4ezHk8j5qeAA",
+          "url": "https://nearblocks.io/txns/ESSqz2Hn2CMbvuL74j34YjGk2Bexw5xd4ezHk8j5qeAA"
+        },
+        {
+          "label": "Swap in NEAR Intents",
+          "at": "2026-11-02T22:47:06.895Z",
+          "chain": "near",
+          "hash": "FZ7MQT2QHqwZeAnvUA8CXyue5aQV2AEAmZcpbDAYY4ni",
+          "url": "https://nearblocks.io/txns/FZ7MQT2QHqwZeAnvUA8CXyue5aQV2AEAmZcpbDAYY4ni"
+        },
+        {
+          "label": "Delivered to the seller: storage_deposit, then ft_transfer",
+          "at": "2026-11-02T22:47:09.815Z",
+          "chain": "near",
+          "hash": "Ggb5B734pfQVDefs12eJ3xsE6sLbeRjcN3j56a7Ac3MA",
+          "url": "https://nearblocks.io/txns/Ggb5B734pfQVDefs12eJ3xsE6sLbeRjcN3j56a7Ac3MA"
+        }
+      ],
+      "receipt": {
+        "body": {
+          "v": 1,
+          "kind": "payment",
+          "paymentId": "pay_344e32ceb8be4004",
+          "seller": "acedevv.near",
+          "endpoint": "tidewater.tides-now",
+          "resource": "http://localhost:4020/p/tidewater/tides-now",
+          "amountUsdc": "10000",
+          "network": "near:mainnet",
+          "transaction": "Ggb5B734pfQVDefs12eJ3xsE6sLbeRjcN3j56a7Ac3MA",
+          "originChain": "sol",
+          "originTx": "56542cnAqGL58AzFZxoWEzESCNrAe8uzGdu2bT6JUKPyCwVypwQFMYEMk3qGGGJBeKUeHMqrqAg21NZxsVDqPHSg",
+          "payer": "Cp4TVsDsqTY18nEvSBYpqUWpkJYaQ6kNdUx6qcAAYMB3",
+          "ts": 1793659634493,
+          "simulated": false
+        },
+        "sig": "kMgWqDVCtib5jsRFdVcv7UP_J-uAeRDUPFuRAABmW7-nU8gdgtNMx4RHOJ79K0-_07V8EKXWheLbGIDNiI04CA",
+        "pub": "_cGrqV19QgXAuQgcw3bZi1xkfnkD5wxNzhBQwJfL6ow"
+      }
+    },
+    {
+      "id": "refund-1",
+      "kind": "refund",
+      "date": "2026-11-02",
+      "title": "Under-deposit refused by Penstock and refunded by 1Click",
+      "endpoint": "GET /p/tidewater/voyage-plan",
+      "http": 402,
+      "priceUsdc": "0.200000",
+      "minAmountInUsdc": "0.200043",
+      "sentUsdc": "0.050000",
+      "refundedUsdc": "0.039966",
+      "refundCostUsdc": "0.010034",
+      "depositAddress": "8nEavKXihjS9Vrxtvf1V1fANr91a2crsNHaexGjcnmFY",
+      "oneClick": {
+        "status": "REFUNDED",
+        "correlationId": "14bcee7f-3231-4055-b0f1-40992c9a288b",
+        "updatedAt": "2026-11-02T23:03:26.000Z",
+        "refundReason": "AMOUNT_MORE_THAN_BALANCE"
+      },
+      "steps": [
+        {
+          "label": "Deposit on Solana (below the required amount)",
+          "at": "2026-11-02T22:56:17.000Z",
+          "chain": "solana",
+          "hash": "4FF48hNzaJiM6RZHwPPrvn3xeSMgzVXz2LQNu6Ua6zPELoWtthXmCPubUmd2h886KJjDvwMTmjSMeddZ4MpoC279",
+          "url": "https://solscan.io/tx/4FF48hNzaJiM6RZHwPPrvn3xeSMgzVXz2LQNu6Ua6zPELoWtthXmCPubUmd2h886KJjDvwMTmjSMeddZ4MpoC279"
+        },
+        {
+          "label": "Bridged into NEAR (Omni Bridge)",
+          "at": "2026-11-02T22:57:20.633Z",
+          "chain": "near",
+          "hash": "EoXBLwgvhCmxbTazF6aRKxktDtxZiT6ihWmaUeKusN8A",
+          "url": "https://nearblocks.io/txns/EoXBLwgvhCmxbTazF6aRKxktDtxZiT6ihWmaUeKusN8A"
+        },
+        {
+          "label": "Sent back out through Omni Bridge",
+          "at": "2026-11-02T23:02:03.629Z",
+          "chain": "near",
+          "hash": "5mjuAEArrxLetnYBLpWn6ekxBtfzntT9ZKVHXYRFENyU",
+          "url": "https://nearblocks.io/txns/5mjuAEArrxLetnYBLpWn6ekxBtfzntT9ZKVHXYRFENyU"
+        },
+        {
+          "label": "Refund received on Solana",
+          "at": "2026-11-02T23:03:11.000Z",
+          "chain": "solana",
+          "hash": "4howVt2QYPM47gTnjNsTMp4dkoGfULHHYe2hMZ2Qki5RjtLWMBNRZZqdFFg288XwehcrCB9jPxWC78pAc6SRxZza",
+          "url": "https://solscan.io/tx/4howVt2QYPM47gTnjNsTMp4dkoGfULHHYe2hMZ2Qki5RjtLWMBNRZZqdFFg288XwehcrCB9jPxWC78pAc6SRxZza"
+        }
+      ]
+    }
+  ]
+}

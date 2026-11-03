@@ -1,11 +1,12 @@
 import { defineConfig, type Plugin } from "vite";
 import react from "@vitejs/plugin-react";
+import { readFileSync } from "node:fs";
 import { faviconSvg, socialCardPng } from "./scripts/share-assets";
 
 const proxyTarget = process.env.PENSTOCK_PROXY_URL ?? "http://localhost:4020";
 
 /**
- * Share assets (favicon.svg, social-card.png) are generated at build time and emitted next to
+ * Share assets (favicon.svg, social-card.png) and proof.json are generated or copied at build time and emitted next to
  * index.html, so they are served from the same origin and the CSP stays strict. SITE_URL, when
  * set at build time, makes the card URL in the Open Graph / Twitter tags absolute.
  */
@@ -14,6 +15,8 @@ function shareAssets(): Plugin {
   const files: Record<string, { type: string; body: () => string | Uint8Array }> = {
     "/favicon.svg": { type: "image/svg+xml", body: faviconSvg },
     "/social-card.png": { type: "image/png", body: socialCardPng },
+    // The real mainnet transactions (docs/PROOF.md), served same-origin for the Real view.
+    "/proof.json": { type: "application/json", body: () => readFileSync(new URL("../../docs/proof.json", import.meta.url), "utf8") },
   };
   return {
     name: "penstock-share-assets",

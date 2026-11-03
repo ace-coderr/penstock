@@ -1,5 +1,7 @@
 # Proof: real transactions on mainnet
 
+Machine-readable copy: [proof.json](proof.json) (also served by the hosted site as `/proof.json`; a test checks that both files agree).
+
 Everything on this page happened on Solana mainnet and NEAR mainnet with real funds. Nothing here is simulated. Each hash links to a public explorer, so anyone can check it. The run followed [LIVE-RUNBOOK.md](LIVE-RUNBOOK.md): separate dev accounts, tiny amounts, a dry quote first, a $1 cap enforced in code, and a human "yes" before the send.
 
 Accounts (dev accounts used only for this):
@@ -19,6 +21,8 @@ An HTTP request to a Penstock-protected API (`GET /p/tidewater/tides-now`, price
 | Delivery (NEAR) | 22:47:09 | `intents.near` withdrew to the seller: `storage_deposit` of 0.00125 NEAR on the USDC contract for `acedevv.near` (its first USDC registration, paid by 1Click from the swap), then `ft_transfer` of 0.010000 USDC to `acedevv.near`. | [Ggb5B734…Ac3MA](https://nearblocks.io/txns/Ggb5B734pfQVDefs12eJ3xsE6sLbeRjcN3j56a7Ac3MA) |
 | 1Click status | 22:47:14 | `SUCCESS`: deposited 0.014949, used 0.014847, delivered 0.010000 USDC. | `GET /v0/status?depositAddress=GhEoS7T2…ygBsG` |
 | HTTP 200 + receipt | 22:47:14 | Penstock confirmed the delivery against 1Click (origin tx in `originChainTxHashes`, terms matching the seller), returned the API response and the signed receipt below. | receipt `pay_344e32ceb8be4004` |
+
+In total the payer paid 0.014949 USDC for a 0.010000 USDC delivery: 0.004949 USDC in fees, including the seller's one-time storage registration.
 
 After the run, `acedevv.near` holds 0.01 USDC (`ft_balance_of` = 10000), and `storage_balance_of(acedevv.near)` on the USDC contract went from `null` to registered.
 
@@ -56,7 +60,7 @@ The API response itself is the example tide service bundled with Penstock (deter
 
 ## 2. One refund: an under-deposit returned to the payer (2026-11-02)
 
-This case was triggered on purpose to prove the refund path. The payer was quoted for a $0.20 call (`GET /p/tidewater/voyage-plan`, 1Click `minAmountIn` 0.200043 USDC) and deliberately sent only 0.05 USDC. Under `EXACT_OUTPUT`, a deposit below `minAmountIn` is refunded after the quote's deadline. The amount was chosen to be at least three times 1Click's refund fee (0.010008 USDC quoted), so the refund would be worth having, and it stayed under the $1 cap.
+This case was triggered on purpose to prove the refund path. The payer was quoted for a $0.20 call (0.200000 USDC to the seller) (`GET /p/tidewater/voyage-plan`, 1Click `minAmountIn` 0.200043 USDC) and deliberately sent only 0.05 USDC. Under `EXACT_OUTPUT`, a deposit below `minAmountIn` is refunded after the quote's deadline. The amount was chosen to be at least three times 1Click's refund fee (0.010008 USDC quoted), so the refund would be worth having, and it stayed under the $1 cap.
 
 | Step | When (UTC) | What | Proof |
 | --- | --- | --- | --- |
