@@ -217,3 +217,6 @@ td.wrap { white-space: normal; min-width: 240px; }
 .receipt-input:focus-visible { border-color: var(--accent); outline: none; }
 .receipt-actions { display: flex; gap: var(--s-2); flex-wrap: wrap; }
 @media (max-width: 960px) { .receipt-verifier { grid-template-columns: 1fr; } }
+.no-keys { margin: 0 0 var(--s-4); padding: var(--s-3) var(--s-4); border: 1px solid var(--accent-line); background: var(--accent-wash); border-radius: var(--radius); font-size: var(--fs-sm); }
+.account-row { display: flex; align-items: center; justify-content: space-between; gap: var(--s-3); flex-wrap: wrap; }
+.payout-check .onchain-facts { margin: var(--s-2) 0; }

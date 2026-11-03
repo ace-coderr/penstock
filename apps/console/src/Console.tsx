@@ -126,7 +126,7 @@ export function Console() {
               {route === "payments" ? <Payments days={days} /> :
                 route === "funnel" ? <Funnel days={days} /> :
                 route === "sessions" ? <Sessions live={ov.mode === "live"} /> :
-                route === "endpoints" ? <Endpoints account={ov.account} /> :
+                route === "endpoints" ? <Endpoints /> :
                 <Ledger overview={ov} />}
             </div>
           )}

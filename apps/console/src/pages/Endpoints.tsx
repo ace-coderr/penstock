@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from "react";
-import { api, ApiError, STATIC_DEMO, useApi, type AccountCheck, type EndpointRow, type Shielded } from "../api";
+import { api, ApiError, STATIC_DEMO, useApi, type EndpointRow, type Shielded } from "../api";
+import { PayoutCheck } from "../components/PayoutCheck";
 import { Empty, ErrorState, Loading, Money, PageHead, Section } from "../components/bits";
 import { money } from "../format";
 
@@ -44,37 +45,6 @@ function Protect({ onDone }: { onDone: () => void }) {
   );
 }
 
-function AccountPanel({ initial }: { initial: AccountCheck }) {
-  const [res, setRes] = useState<AccountCheck>(initial);
-  const [busy, setBusy] = useState(false);
-  async function check(e: FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    const account = String(new FormData(e.currentTarget).get("account") ?? "").trim();
-    setBusy(true);
-    try {
-      setRes(await api<AccountCheck>(`/account-check?account=${encodeURIComponent(account)}`));
-    } catch (err) {
-      setRes({ account, exists: null, method: "format", message: (err as ApiError).message });
-    } finally {
-      setBusy(false);
-    }
-  }
-  return (
-    <form onSubmit={check}>
-      <p className="lede">1Click rejects quotes to a NEAR account that does not exist, with an unhelpful error. Penstock checks the payout account first and refuses to quote until it exists.</p>
-      <div className="toolbar">
-        <div className="field" style={{ flex: "1 1 260px" }}><label htmlFor="acc">NEAR account</label><input id="acc" name="account" defaultValue={initial.account} /></div>
-        <button className="btn" disabled={busy}>{busy ? "Checking…" : "Check"}</button>
-      </div>
-      <div role="status" className={`account-result ${res.exists === false ? "is-bad" : res.exists ? "is-ok" : ""}`}>
-        <span className="account-name mono">{res.account}</span>
-        <span className={`st ${res.exists === false ? "st-failed" : res.exists ? "st-settled" : "st-pending"}`}>{res.exists === false ? "not found" : res.exists ? "exists" : "unverified"}</span>
-        <p>{res.message} <span className="faint">({res.method} check)</span></p>
-      </div>
-    </form>
-  );
-}
-
 function ShieldedPanel() {
   const r = useApi<Shielded>("/shielded");
   if (r.loading && !r.data) return <Loading lines={3} />;
@@ -107,7 +77,7 @@ function ShieldedPanel() {
   );
 }
 
-export function Endpoints({ account }: { account: AccountCheck }) {
+export function Endpoints() {
   const r = useApi<{ endpoints: EndpointRow[] }>("/endpoints");
   return (
     <>
@@ -140,7 +110,7 @@ export function Endpoints({ account }: { account: AccountCheck }) {
       </Section>
       <Section idx="02" title="Protect an endpoint"><div className="panel"><Protect onDone={r.reload} /></div></Section>
       <div className="grid-2 sec-pair">
-        <Section idx="03" title="Payout account check"><div className="panel"><AccountPanel initial={account} /></div></Section>
+        <Section idx="03" title="Payout account check"><div className="panel"><PayoutCheck /></div></Section>
         <Section idx="04" title="Shielded payer routes"><div className="panel"><ShieldedPanel /></div></Section>
       </div>
     </>
