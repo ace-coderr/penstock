@@ -26,9 +26,9 @@ export function HostedBanner({ label }: { label?: string } = {}) {
       <div className="frame hosted-row">
         <span className="sim">Simulated</span>
         {STATIC_DEMO ? (
-          <span>Hosted demo: everything here is simulated. Run it locally for the real flow (see <a href="https://github.com/ace-coderr/penstock#readme">README</a>).</span>
+          <span>Hosted demo: everything here is simulated except the <a href="/app#/?view=real">Real (on-chain) view</a>, which is read from NEAR mainnet. Run it locally for the full flow (see <a href="https://github.com/ace-coderr/penstock#readme">README</a>).</span>
         ) : (
-          <span>{label} Rows marked “simulated” are demo data, not real transactions.</span>
+          <span>{label} Rows marked “simulated” are demo data. The Real (on-chain) view on Ledger and Payments is read from NEAR mainnet.</span>
         )}
       </div>
     </div>

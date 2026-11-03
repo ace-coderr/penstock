@@ -3,6 +3,8 @@ import { downloadCsv, exportUrl, STATIC_DEMO, useApi, type Payment, type Receipt
 import { Chain, Drawer, Empty, ErrorState, Loading, Money, PageHead, Section, Sim, Status } from "../components/bits";
 import { CHAIN_META, explorerFor, isSimHash, originAmount, short, money, moneyUsd, when } from "../format";
 import { useNewIds } from "../motion";
+import { RealView } from "../components/RealView";
+import { ViewSwitch, useView } from "../components/ViewSwitch";
 
 const PAGE = 25;
 
@@ -82,6 +84,16 @@ function ReceiptView({ id, onClose }: { id: string; onClose: () => void }) {
 }
 
 export function Payments({ days }: { days: number }) {
+  const [view, setView] = useView();
+  return (
+    <>
+      <ViewSwitch view={view} onChange={setView} />
+      {view === "real" ? <RealView tab="payments" /> : <SimulatedPayments days={days} />}
+    </>
+  );
+}
+
+function SimulatedPayments({ days }: { days: number }) {
   const [status, setStatus] = useState("");
   const [chain, setChain] = useState("");
   const [page, setPage] = useState(0);

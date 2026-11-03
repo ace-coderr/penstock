@@ -220,3 +220,27 @@ td.wrap { white-space: normal; min-width: 240px; }
 .no-keys { margin: 0 0 var(--s-4); padding: var(--s-3) var(--s-4); border: 1px solid var(--accent-line); background: var(--accent-wash); border-radius: var(--radius); font-size: var(--fs-sm); }
 .account-row { display: flex; align-items: center; justify-content: space-between; gap: var(--s-3); flex-wrap: wrap; }
 .payout-check .onchain-facts { margin: var(--s-2) 0; }
+.real-list { display: grid; gap: var(--s-4); }
+.real-entry { display: flex; flex-direction: column; gap: var(--s-4); min-width: 0; }
+.real-entry-head { display: flex; justify-content: space-between; align-items: flex-start; gap: var(--s-3); flex-wrap: wrap; }
+.real-entry-head h3 { font: 400 var(--fs-lg) / 1.25 var(--font-serif); margin: var(--s-2) 0 4px; }
+.real-meta { margin: 0; font-size: var(--fs-xs); overflow-wrap: anywhere; }
+.real-amounts { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--s-3); margin: 0; }
+.real-amounts > div { border: var(--border); border-radius: var(--radius); padding: var(--s-3); min-width: 0; }
+.real-amounts dt { font-size: var(--fs-2xs); color: var(--text-2); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px; }
+.real-amounts dd { margin: 0; font-size: var(--fs-sm); overflow-wrap: anywhere; }
+.real-amounts .faint { display: block; font-size: var(--fs-xs); }
+.real-steps { list-style: none; margin: 0; padding: 0; display: grid; gap: 0; }
+.real-steps li { display: grid; grid-template-columns: 7.5em 5em minmax(0, 1fr) auto; gap: var(--s-3); align-items: center; padding: var(--s-2) 0; border-top: var(--border); font-size: var(--fs-sm); }
+.real-time { color: var(--text-2); font-size: var(--fs-xs); }
+.real-chain { font: 500 var(--fs-2xs) / 1 var(--font-mono); letter-spacing: 0.05em; text-transform: uppercase; border: var(--border-strong); border-radius: var(--radius-pill); padding: 4px 8px; justify-self: start; }
+.real-chain-solana { color: #c7a8f5; }
+.real-chain-near { color: var(--accent); }
+.real-hash { font-size: var(--fs-xs); white-space: nowrap; display: inline-flex; align-items: center; min-height: 32px; }
+.real-dep { margin: 0; font-size: var(--fs-xs); overflow-wrap: anywhere; }
+@media (max-width: 960px) { .real-amounts { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 680px) {
+  .real-steps li { grid-template-columns: 1fr auto; row-gap: 4px; }
+  .real-steps .real-label { grid-column: 1 / -1; }
+  .real-hash { min-height: 44px; }
+}
