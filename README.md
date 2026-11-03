@@ -164,14 +164,20 @@ One real x402 payment, on mainnet, on 2026-11-02: an API call priced at $0.01 wa
 
 ## Hosted demo (static, Cloudflare Workers static assets)
 
-There is also a fully static build of the landing page and the console, for hosting. It makes **no server calls**:
+There is also a fully static build of the landing page and the console, for hosting. It has **no server**: everything is simulated in the browser, except a Real view that reads public data from NEAR mainnet:
 
 - Every console request is answered in the browser by a simulated API with the same response shapes as the real admin API (`apps/console/src/static`).
 - That API is fed by a snapshot of the seed data, generated at build time by the real seed generator.
 - A parity test (`apps/proxy/test/static-parity.test.ts`) checks the in-browser responses against the real API for the same ledger.
 - A simulated agent "pays" every few seconds, so the console stays live.
 
-Every page carries a persistent banner: "Hosted demo: everything here is simulated. Run it locally for the real flow." Anything that needs the proxy or an admin token is removed or disabled: there is no token field, "Protect an endpoint" is disabled with a note, and the CSV is built in the browser. A `_headers` file sets a Content-Security-Policy with `connect-src 'self'`, so the browser itself blocks requests to other origins.
+**The Real view.** Ledger and Payments have a "Simulated | Real (on-chain)" switch, and the landing page has a "Real transactions" section. The real parts are marked with a solid teal **REAL · ON-CHAIN** badge; everything simulated keeps the amber **SIMULATED** badge. Real means:
+- **`/proof.json`**: the one real payment and one real refund from [docs/PROOF.md](docs/PROOF.md), with amounts, times, explorer links (Solscan, NearBlocks) and the signed receipt. `docs/proof.json` is built from the live-run records by `scripts/build-proof.ts`; `apps/console/test/proof.test.ts` checks that every hash, time, amount and the receipt match PROOF.md.
+- **Live reads of NEAR mainnet in the browser**: whether `acedevv.near` exists, its USDC balance (`ft_balance_of` on the NEAR USDC contract) and whether its USDC storage is registered. Read-only public chain data, no keys, no wallet. Primary RPC `rpc.mainnet.fastnear.com`, fallback `rpc.mainnet.near.org` (both send `Access-Control-Allow-Origin: *`, checked 2026-11-03). If neither answers, the page says "Could not reach the chain" and shows the last known values from `proof.json`, labelled cached.
+- **Receipt verification in the browser**: WebCrypto Ed25519 over the canonical JSON of the receipt body, the same rules as `verifyReceipt` in `@penstock/core` (a test runs both on the same receipts). A paste box verifies any other receipt, as JSON or as a `PENSTOCK-RECEIPT` header value.
+- **Payout-account check for any NEAR account** (05 Endpoints): exists? USDC storage registered? If not, "the first payment registers it for about 0.005 USDC, paid by the payer." Penstock never asks for keys or a wallet connection.
+
+Every page carries one persistent banner: "Hosted demo: everything here is simulated except the Real (on-chain) view, which is read from NEAR mainnet. Run it locally for the full flow." One shared footer, on the landing page and every console tab, repeats that note and links the docs, source, proof and license. Anything that needs the proxy or an admin token is removed or disabled: there is no token field, "Protect an endpoint" is disabled with a note, and the CSV is built in the browser. A `_headers` file sets a Content-Security-Policy whose `connect-src` is exactly `'self'` plus the two NEAR RPC origins above, so the browser itself blocks any other request (no analytics, no other hosts).
 
 **Build and preview it locally:**
 ```bash
@@ -189,7 +195,7 @@ pnpm serve:static
 ```bash
 pnpm audit:static
 ```
-`serve:static` serves http://localhost:4032/. `audit:static` checks the build: no secrets or personal data, no `data:` URIs, only same-origin requests, the CSP and rewrites in place, reduced-motion rules present, every row simulated. It prints `PASS` or the failures.
+`serve:static` serves http://localhost:4032/. `audit:static` checks the build: no secrets or personal data, no `data:` URIs, requests only to this origin or the two allowlisted NEAR RPCs (and a CSP `connect-src` that lists exactly those), `proof.json` present with explorer links only, the CSP and rewrites in place, reduced-motion rules present, every simulated row flagged. It prints `PASS` or the failures.
 
 **Deployment.** The hosted demo is deployed as a **Cloudflare Workers static-assets site**: a Worker with no server code that serves `apps/console/dist`. The repository-root `wrangler.toml` declares it:
 

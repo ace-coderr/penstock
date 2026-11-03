@@ -242,5 +242,5 @@ td.wrap { white-space: normal; min-width: 240px; }
 @media (max-width: 680px) {
   .real-steps li { grid-template-columns: 1fr auto; row-gap: 4px; }
   .real-steps .real-label { grid-column: 1 / -1; }
-  .real-hash { min-height: 44px; }
+
 }
