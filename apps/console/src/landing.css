@@ -72,7 +72,8 @@
 .l-cta p { color: var(--text-2); margin: 0 auto var(--s-5); max-width: 56ch; }
 .l-cta .l-actions { justify-content: center; }
 .l-foot { border-top: var(--border); padding: var(--s-7) 0 var(--s-8); }
-.l-foot-grid { display: grid; grid-template-columns: 2fr repeat(3, 1fr); gap: var(--s-5); }
+.l-foot-grid { display: grid; grid-template-columns: 2fr repeat(4, 1fr); gap: var(--s-5); }
+.l-foot-note { font-size: var(--fs-xs) !important; color: var(--warn); }
 .l-foot-grid p { font-size: var(--fs-sm); max-width: 36ch; margin: var(--s-3) 0 0; }
 .l-foot nav { display: flex; flex-direction: column; gap: var(--s-2); }
 .l-foot h3 { font: 500 var(--fs-2xs) / 1 var(--font-mono); letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-3); margin: 0 0 var(--s-2); }
@@ -83,6 +84,7 @@
 @media (max-width: 960px) {
   .l-hero { grid-template-columns: 1fr; gap: var(--s-5); padding-top: var(--s-7); }
   .l-foot-grid { grid-template-columns: 1fr 1fr; }
+  .l-foot-brand { grid-column: 1 / -1; }
 }
 @media (max-width: 680px) {
   .cards, .proof { grid-template-columns: 1fr; }

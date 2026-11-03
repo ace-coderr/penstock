@@ -1,5 +1,6 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { Wordmark } from "./components/Wordmark";
+import { Footer, REPO } from "./components/Footer";
 import { HostedBanner } from "./components/bits";
 import { STATIC_DEMO } from "./api";
 import { CardArt } from "./components/Iso";
@@ -12,7 +13,6 @@ import { RealBadge } from "./components/OnChain";
 import { RealTransactions } from "./components/RealTransactions";
 import { ReceiptVerifier } from "./components/ReceiptVerifier";
 
-const REPO = "https://github.com/ace-coderr/penstock";
 
 interface Stats {
   simulated: boolean;
@@ -254,32 +254,7 @@ export function Landing() {
         </div>
       </main>
 
-      <footer className="l-foot">
-        <div className="frame l-foot-grid">
-          <div>
-            <Wordmark size={22} />
-            <p className="faint">Get paid by AI agents from any chain. Built for NEAR HACKATHON 2026. MIT licensed.</p>
-          </div>
-          <nav aria-label="Product">
-            <h3>Product</h3>
-            <a href="/app">Seller console</a>
-            <a href="/app#/payments">Payments and receipts</a>
-            <a href="/app#/funnel">Funnel</a>
-          </nav>
-          <nav aria-label="Docs">
-            <h3>Docs</h3>
-            <a href={`${REPO}#readme`}>README</a>
-            <a href={`${REPO}/blob/main/docs/SPEC-NOTES.md`}>Spec notes</a>
-            <a href={`${REPO}/blob/main/docs/AUDIT.md`}>Audit</a>
-          </nav>
-          <nav aria-label="Source">
-            <h3>Source</h3>
-            <a href={REPO}>GitHub</a>
-            <a href={`${REPO}/blob/main/LICENSE`}>License (MIT)</a>
-            <a href="https://docs.near-intents.org/integration/distribution-channels/1click-api/about-1click-api">1Click Swap API docs</a>
-          </nav>
-        </div>
-      </footer>
+      <Footer />
     </div>
   );
 }

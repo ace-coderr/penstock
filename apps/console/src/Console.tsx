@@ -3,6 +3,7 @@ import { adminToken, setAdminToken, STATIC_DEMO, useApi, type Overview, type Pay
 import { CHAIN_META, money } from "./format";
 import { ErrorState, HostedBanner, Loading } from "./components/bits";
 import { Wordmark } from "./components/Wordmark";
+import { Footer } from "./components/Footer";
 import { Endpoints } from "./pages/Endpoints";
 import { Funnel } from "./pages/Funnel";
 import { Ledger } from "./pages/Ledger";
@@ -132,6 +133,7 @@ export function Console() {
           )}
         </main>
       </div>
+      <Footer />
       <div className="toasts" role="status" aria-live="polite">
         {toasts.map((t) => (
           <div className="toast" key={t.id}>
