@@ -533,7 +533,14 @@ export class PenstockBuyer {
     if (op.method === "exact-near" && op.exactPayload && op.state === "deposit_sent_unconfirmed") return this.resendExact(op);
     if (!op.quote?.operationToken || TERMINAL_STATES.has(op.state) && op.state !== "upstream_failed_after_settlement" && !(op.state === "failed" && op.refundState === "in_progress")) return op;
     const view = await this.lookup(op);
-    if (!view) return op;
+    if (!view) {
+      // The seller offers no lookup (or is unreachable): presenting the same deposit payload again is safe and idempotent.
+      if (op.txHash && (op.state === "confirming" || op.state === "deposit_sent_unconfirmed")) {
+        await this.submit(op, {}, { method: "near-intents" }, 1);
+        return this.journal.get(op.id)!;
+      }
+      return op;
+    }
     switch (view.state) {
       case "deposit_in_progress":
       case "settled_not_delivered":
