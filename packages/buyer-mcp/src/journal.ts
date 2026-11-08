@@ -61,7 +61,7 @@ export interface Operation {
   originChain: string | null;
   originSymbol: string | null;
   /** Quote terms (near-intents). */
-  quote: { unquoted: unknown; payTo: string; amount: string; depositMemo?: string; refundDeadline: string; operationToken: string; refundTo: string } | null;
+  quote: { resourceUrl: string; unquoted: unknown; payTo: string; amount: string; depositMemo?: string; refundDeadline: string; operationToken: string; refundTo: string } | null;
   /** exact-near: the signed payload header that was sent, so it can be presented again unchanged. */
   exactPayload: string | null;
   txHash: string | null;
@@ -144,7 +144,7 @@ export class Journal {
     for (let i = 0; i <= lastIdx; i++) {
       const raw = lines[i]!;
       if (!raw) continue;
-      let parsed: Line | null = null;
+      let parsed: Line | null;
       try {
         parsed = JSON.parse(raw) as Line;
       } catch {

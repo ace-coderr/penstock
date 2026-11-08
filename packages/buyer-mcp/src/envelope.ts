@@ -46,11 +46,9 @@ export function paidTotal(total: bigint): string {
 
 /** The words for one operation. Pure, so the wording rules can be tested state by state. */
 export function describeOperation(op: Operation): { next_action: string; do_not_retry: boolean } {
-  const money = movedMoney(op);
   const amount = `${usdc(op.amountUsdc)} USDC`;
   const chain = op.originChain ? (chainByKey(op.originChain)?.label ?? op.originChain) : "the origin chain";
   const tx = op.txHash ?? "unknown";
-  const doNot = money !== "no";
   const refundTo = op.quote?.refundTo ?? "your refund address";
   switch (op.state) {
     case "quoted":

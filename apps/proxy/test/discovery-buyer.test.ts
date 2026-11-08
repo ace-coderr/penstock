@@ -87,7 +87,7 @@ describe("buyer MCP server", () => {
     const init = (await handle({ jsonrpc: "2.0", id: 1, method: "initialize" })) as { result: { protocolVersion: string } };
     expect(init.result.protocolVersion).toBe("2025-06-18");
     const list = (await handle({ jsonrpc: "2.0", id: 2, method: "tools/list" })) as { result: { tools: { name: string }[] } };
-    expect(list.result.tools.map((t) => t.name)).toEqual(["penstock_search", "penstock_routes", "penstock_call", "penstock_resume"]);
+    expect(list.result.tools.map((t) => t.name)).toEqual(["penstock_search", "penstock_routes", "penstock_call", "penstock_status", "penstock_resume"]);
     expect(await handle({ jsonrpc: "2.0", method: "notifications/initialized" })).toBeNull();
     const search = (await handle({ jsonrpc: "2.0", id: 3, method: "tools/call", params: { name: "penstock_search", arguments: { capability: "tides" } } })) as { result: { structuredContent: { results: { url: string }[] } } };
     const url = search.result.structuredContent.results[0]!.url;

@@ -406,7 +406,7 @@ export class PenstockBuyer {
     }
     const instructions = depositInstructions(quoted);
     let op = this.journal.update(op0.id, {
-      quote: { unquoted, payTo: instructions.payTo, amount: instructions.amount, depositMemo: instructions.depositMemo, refundDeadline: instructions.refundDeadline, operationToken: instructions.operationToken, refundTo: wallet.address },
+      quote: { resourceUrl: required.resource.url, unquoted, payTo: instructions.payTo, amount: instructions.amount, depositMemo: instructions.depositMemo, refundDeadline: instructions.refundDeadline, operationToken: instructions.operationToken, refundTo: wallet.address },
     });
 
     // Write-ahead: the deposit is recorded as started BEFORE the wallet is asked to send it. If the
@@ -446,7 +446,7 @@ export class PenstockBuyer {
   private async submit(op: Operation, init: RequestInit, meta: Partial<PaidResult>, retries = this.o.pendingRetries ?? 6): Promise<SealedResult> {
     const q = op.quote!;
     const instructions: DepositInstructions = { network: (q.unquoted as PaymentRequirements).network, asset: (q.unquoted as PaymentRequirements).asset, amount: q.amount, payTo: q.payTo, ...(q.depositMemo ? { depositMemo: q.depositMemo } : {}), refundDeadline: q.refundDeadline, operationToken: q.operationToken };
-    const stub: PaymentRequired = { x402Version: 2, resource: { url: op.url }, accepts: [] };
+    const stub: PaymentRequired = { x402Version: 2, resource: { url: q.resourceUrl }, accepts: [] };
     const payload = buildDepositPayload(stub, q.unquoted as PaymentRequirements, instructions, op.txHash!);
     const reqInit = { ...fromRequest(op.request), ...init, headers: { ...fromRequest(op.request).headers, ...(init.headers as Record<string, string> | undefined) } };
     let parsed: Parsed;
@@ -510,7 +510,7 @@ export class PenstockBuyer {
 
   /** Returns what an earlier operation for this call did, completing it first if it can be completed. */
   private async returnExisting(op0: Operation): Promise<SealedResult> {
-    let op = await this.reconcile(op0);
+    const op = await this.reconcile(op0);
     const deliveredUnacked = op.state === "delivered" && !op.acknowledged;
     const failedMoved = op.state === "upstream_failed_after_settlement" || (op.state === "failed" && movedMoney(op) !== "no");
     const result: PaidResult = {
@@ -721,8 +721,8 @@ async function parse(res: Response): Promise<Parsed> {
   const s = res.headers.get("payment-response");
   const r = res.headers.get("penstock-receipt");
   const body = await readBody(res);
-  let settle: SettleResponse | null = null;
-  let receipt: unknown | null = null;
+  let settle: SettleResponse | null;
+  let receipt: unknown | null;
   try {
     settle = s ? (decodePaymentResponseHeader(s) as SettleResponse) : null;
   } catch {
