@@ -52,6 +52,9 @@ export function describeOperation(op: Operation): { next_action: string; do_not_
   const refundTo = op.quote?.refundTo ?? "your refund address";
   switch (op.state) {
     case "quoted":
+      if (op.manualDeposit && op.quote && new Date(op.quote.refundDeadline).getTime() < Date.now()) {
+        return { do_not_retry: true, next_action: `This quote expired. If you already sent the deposit to ${op.quote.payTo}, call penstock_resume with operation_id and the transaction hash. If you did not send anything, call penstock_call again with new_purchase: true to get a new quote.` };
+      }
       if (op.manualDeposit && op.quote) {
         return {
           do_not_retry: false,

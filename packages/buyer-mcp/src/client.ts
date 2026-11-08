@@ -656,7 +656,11 @@ export function verdictFor(latest: Operation | undefined, opts: CallOptions, aut
   if (!latest) return "new";
   switch (latest.state) {
     case "quoted":
-      if (latest.quote && !latest.manualDeposit && new Date(latest.quote.refundDeadline).getTime() < now) return "expire";
+      if (latest.quote && new Date(latest.quote.refundDeadline).getTime() < now) {
+        // A manual quote that ran out may still have had a deposit sent to it by the agent: only an explicit new purchase replaces it.
+        if (!latest.manualDeposit) return "expire";
+        return opts.newPurchase ? "expire" : "return";
+      }
       return "continue";
     case "deposit_sent_unconfirmed":
     case "confirming":

@@ -104,7 +104,7 @@ export class Journal {
   /** Set when a stored line failed its integrity check; new purchases are refused while set. */
   tampered: { line: number } | null = null;
 
-  constructor(readonly opts: { dir?: string; now?: () => number } = {}) {
+  constructor(readonly opts: { dir?: string; now?: () => number; compactAt?: number } = {}) {
     if (opts.dir) {
       mkdirSync(opts.dir, { recursive: true });
       this.file = join(opts.dir, "journal.jsonl");
@@ -169,6 +169,25 @@ export class Journal {
       good += raw + "\n";
       this.apply(parsed.rec);
     }
+    this.lastMac = prev;
+    if (this.n > (this.opts.compactAt ?? 2000)) this.compact();
+  }
+
+  /** Rewrites the file with only the newest snapshot of each operation, as a fresh chain. Runs at load only. */
+  private compact(): void {
+    if (!this.file) return;
+    let prev = ZERO;
+    let n = 0;
+    let out = "";
+    for (const id of this.order) {
+      const rec = this.ops.get(id)!;
+      const line: Line = { n: ++n, prev, rec, mac: "" };
+      line.mac = this.mac(prev, rec);
+      prev = line.mac;
+      out += JSON.stringify(line) + "\n";
+    }
+    writeFileSync(this.file, out, { mode: 0o600 });
+    this.n = n;
     this.lastMac = prev;
   }
 
