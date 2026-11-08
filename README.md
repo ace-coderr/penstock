@@ -302,6 +302,19 @@ docs/SPEC-NOTES.md      every external wire shape Penstock relies on, with sourc
 
 Discovery is at `GET /.well-known/penstock.json`. It lists sellers, endpoints, capabilities, prices, accepted origin chains and assets, session URLs, and the spec versions in use.
 
+## Buyer retry safety (operation journal)
+
+An agent that gets an error after paying and simply calls again used to open a **second quote and a second deposit**. The buyer now keeps a write-ahead **operation journal** (`PENSTOCK_JOURNAL_DIR`, default `./data/buyer-journal`): every payment is recorded *before* anything is sent, with its quote, deposit address, transaction hash, receipt and state (`quoted`, `deposit_sent_unconfirmed`, `confirming`, `delivered`, `upstream_failed_after_settlement`, `refunded`, `expired`, `failed`).
+
+- **A repeat of the same call returns the first operation; it does not pay again.** The key is buyer + method + URL + parameters. While a payment is in flight, a repeat can never open a new one, not even with `new_purchase: true`. After a delivered payment, an identical call within **10 minutes replays the stored result** (labelled `replayed: true`, with the original receipt), because a lost response looks exactly like a retry. After that, or with `new_purchase: true`, it buys again. After a payment whose upstream failed, a new purchase needs `new_purchase: true` and a look at `penstock_status` first.
+- **`penstock_status`** (`operation_id` or `last`) asks the seller what happened to the operation (`POST /api/public/operation`, authorised by the operation token, which shows only that operation) and returns the state, `money_moved` (yes, no or unknown), `payment_id`, the signed receipt, the refund state and a plain `next_action`. For a payment whose first answer was lost, it also completes the delivery by presenting the same deposit payload again.
+- **Every `penstock_*` result carries the same envelope:** `state`, `money_moved`, `price_usdc`, `route_fee_usdc`, `total_debited_usdc`, `payment_id`, `operation_id`, `do_not_retry`, `next_action`, `paid_total_usdc` (fees included). Seller text reaches the agent only as a quoted `seller_message`, never as instructions. A refund is described as refunded only when 1Click reports REFUNDED, and as "in progress" when it reports FAILED.
+- **`maxUsd` covers price plus route fee.** If the total is above it, the call is refused before any payment, and the message states the total.
+- **The seller returns the same quote** to the same buyer for the same unresolved purchase, so a retry never mints a second deposit address. Addresses stay single-use.
+- Sessions are unchanged: a retry on a session-metered endpoint spends the session, not a new deposit.
+
+See [docs/RETRY-TEST.md](docs/RETRY-TEST.md) for the test and its before and after numbers.
+
 ## Prepaid sessions and their trust model
 
 1Click has per-route bridge minimums, observed live from $0.005 on Arbitrum to $0.15 on Base and $6.45 on Bitcoin. Most chains therefore cannot pay a $0.004 call on its own. Sessions solve this:
@@ -360,6 +373,10 @@ The audit and its results are in [docs/AUDIT.md](docs/AUDIT.md). Main measures:
 - **The facilitator and the ledger are single-node.** Claims are exactly-once within one SQLite ledger, so a multi-instance deployment needs a shared database.
 - **Live deposits on origin chains need the agent's own wallet.** The MCP server returns deposit instructions and `penstock_resume` finishes the payment. No origin-chain wallets are bundled.
 - **Live mode has been run once, on one route.** One real payment and one real refund, Solana USDC to NEAR USDC through 1Click, are recorded in [docs/PROOF.md](docs/PROOF.md). Other chains have been exercised with real dry quotes only.
+
+- **Journal limits.** The journal's HMAC chain detects corruption and torn writes and catches accidental or naive edits; it is **not protection against a malicious local user**, who can read the key stored beside it. A failed check makes the buyer refuse new purchases. It is local to one machine: two machines with separate journals do not see each other's payments. A delivered result is kept for 24 hours (up to 256 KB).
+- **Replay is a guess about intent.** Within 10 minutes an identical call returns the earlier result. An agent that really wants fresh data inside that window must pass `new_purchase: true`.
+- **Upstream failure after payment is not refunded automatically.** The buyer is told clearly and does not pay again; the seller owes the refund by agreement. Booking an owed refund for single payments is not built yet.
 
 ## Credits and sources
 
