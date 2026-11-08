@@ -1,5 +1,7 @@
 # Retry test: one purchase, one payment
 
+The double-payment path was found by running LLM agents against Penstock with Clearance (https://github.com/Selliksss/clearance), an outside agent-testing project. In that run, settlement was Penstock's own demo simulation. The fix and our scripted before/after are described here.
+
 An outside test of LLM agents against the buyer MCP found that, after the first paid call hit an error, most agents called again, which opened a new quote and a new deposit: the seller received two payments while the agent reported one. This file describes the scripted reproduction and the fix. It runs in demo mode only.
 
 ## What is injected, plainly
