@@ -16,7 +16,7 @@ export function Sessions({ live }: { live: boolean }) {
   return (
     <>
     {head}
-    <Section idx="01" title="Sessions" aside={<span className="mono">cap {money(capUsdc)} per session</span>}>
+    <Section idx="01" title="Sessions" aside={<span className="cap-label"><span className="mono">cap {money(capUsdc)} per session</span><span className="cap-note">Live mode: the seller holds session funds up to the cap and sends back the unused balance. No escrow yet.</span></span>}>
       <p className="trust">
         One payment opens a session; calls are metered against it and settled in batches; the unused balance is refunded on close or after 24 hours.
         You hold session funds (never more than the cap) until close. The buyer holds a signed session receipt the whole time.

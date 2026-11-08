@@ -153,6 +153,17 @@ export class SimulatedOneClick implements OneClick {
     return hash;
   }
 
+  /** Test and audit hook: every simulated origin-chain deposit made so far (what the seller side received). */
+  depositStats(): { count: number; totalBaseUnits: bigint; addresses: number } {
+    let count = 0;
+    let total = 0n;
+    for (const q of this.quotes.values()) for (const d of q.deposits) {
+        count += 1;
+        total += d.amount;
+      }
+    return { count, totalBaseUnits: total, addresses: [...this.quotes.values()].filter((q) => q.deposits.length > 0).length };
+  }
+
   has(depositAddress: string): boolean {
     return this.quotes.has(depositAddress);
   }
