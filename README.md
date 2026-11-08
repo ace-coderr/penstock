@@ -313,7 +313,7 @@ An agent that gets an error after paying and simply calls again used to open a *
 - **The seller returns the same quote** to the same buyer for the same unresolved purchase, so a retry never mints a second deposit address. Addresses stay single-use.
 - Sessions are unchanged: a retry on a session-metered endpoint spends the session, not a new deposit.
 
-See [docs/RETRY-TEST.md](docs/RETRY-TEST.md) for the test and its before and after numbers.
+See [docs/RETRY-TEST.md](docs/RETRY-TEST.md) for the test and its before and after numbers. The problem was found by outside agent testing with [Clearance](https://github.com/Selliksss/clearance); the credit and details are in that file.
 
 ## Prepaid sessions and their trust model
 
