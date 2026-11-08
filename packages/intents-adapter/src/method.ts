@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import {
   CHAINS, DESTINATION, chainByCaip2, assetOn, formatUnits, isValidAddress, log,
   type AssetInfo, type ChainInfo, type Endpoint, type MethodContext, type MethodMeta, type MethodOutcome, type PaymentMethodHandler,
@@ -48,6 +48,8 @@ export function defaultOrigins(): { chain: ChainInfo; asset: AssetInfo }[] {
 
 interface QuotedRecord {
   unquoted: PaymentRequirements;
+  /** The quoted entry that was returned (deposit address, token, deadline), so the same quote can be returned again. */
+  quoted?: PaymentRequirements;
   resource: string;
   sellerId: string;
   endpointId: string;
@@ -57,6 +59,17 @@ interface QuotedRecord {
   amountOutUsd: string;
   timeEstimate: number;
   confidentiality: Confidentiality;
+}
+
+const sha = (s: string) => createHash("sha256").update(s).digest("hex");
+
+/** What the seller knows about one operation, shown only to the holder of its operation token. */
+export interface OperationView {
+  state: "quoted" | "deposit_in_progress" | "settled_not_delivered" | "delivered" | "upstream_failed" | "delivery_unknown" | "refunded" | "refund_in_progress" | "expired" | "unknown";
+  payment_id?: string;
+  receipt?: unknown;
+  refund_state?: "none" | "in_progress" | "owed" | "refunded";
+  refund_amount_usdc?: string;
 }
 
 function instrumentOf(network: string, depositAddress: string, memo?: string): string {
@@ -122,6 +135,12 @@ export class NearIntentsMethod implements PaymentMethodHandler {
     if (!chain || !asset) return { kind: "rejected", reason: "invalid_exact_near_intents_quote_unavailable", message: "origin not offered" };
     const refundTo = typeof p.refundTo === "string" ? p.refundTo.trim() : "";
     if (!isValidAddress(chain, refundTo)) return { kind: "rejected", reason: "invalid_payload", message: `refundTo must be a valid ${chain.label} address (e.g. ${chain.addressExample})` };
+    // The same buyer asking again for the same thing, while its quote is still open and unresolved, gets the SAME
+    // quote and deposit address back: a retry never mints a second deposit address for one purchase.
+    const destAmount = (req.extra.destination as Destination).amount;
+    const openKey = `openquote:${sha([meta.buyer, meta.resource.url, req.network, req.asset.toLowerCase(), refundTo, destAmount].join("|"))}`;
+    const reuse = this.openQuote(ctx, openKey);
+    if (reuse) return { kind: "quoted", quoted: reuse, buyerChain: chain.key };
     if (ctx.allow && !ctx.allow("quote")) return { kind: "rejected", reason: "rate_limited", message: "too many quote requests; slow down" };
 
     const dest0 = req.extra.destination as Destination;
@@ -176,16 +195,76 @@ export class NearIntentsMethod implements PaymentMethodHandler {
     const refundDeadline = new Date(deadlineMs).toISOString();
     const expiry = Math.floor(deadlineMs / 1000) + GRACE_SEC;
     const operationToken = mintOperationToken(this.o.keys, { network: req.network, depositAddress, depositMemo, resource: meta.resource.url, destination: dest }, expiry);
-    const record: QuotedRecord = {
-      unquoted: req, resource: meta.resource.url, sellerId: meta.seller.id, endpointId: meta.endpoint.id, buyer: meta.buyer, refundTo,
-      amountInUsd: quote.quote.amountInUsd, amountOutUsd: quote.quote.amountOutUsd, timeEstimate: quote.quote.timeEstimate, confidentiality,
-    };
-    ctx.store.recordQuotedOperation(instrumentOf(req.network, depositAddress, depositMemo), record, now);
     const quoted: PaymentRequirements = {
       ...req, amount: quote.quote.amountIn, payTo: depositAddress,
       extra: { ...req.extra, refundDeadline, operationToken, ...(depositMemo ? { depositMemo } : {}) },
     };
+    const record: QuotedRecord = {
+      unquoted: req, quoted, resource: meta.resource.url, sellerId: meta.seller.id, endpointId: meta.endpoint.id, buyer: meta.buyer, refundTo,
+      amountInUsd: quote.quote.amountInUsd, amountOutUsd: quote.quote.amountOutUsd, timeEstimate: quote.quote.timeEstimate, confidentiality,
+    };
+    const instrument = instrumentOf(req.network, depositAddress, depositMemo);
+    ctx.store.recordQuotedOperation(instrument, record, now);
+    ctx.store.setKv(openKey, instrument);
+    ctx.store.setKv(`optok:${sha(operationToken)}`, instrument); // lets the holder of the token ask what happened to it
     return { kind: "quoted", quoted, buyerChain: chain.key };
+  }
+
+  /** The still-open, unresolved quote under this key, if there is one. */
+  private openQuote(ctx: MethodContext, openKey: string): PaymentRequirements | null {
+    const instrument = ctx.store.getKv(openKey);
+    const op = instrument ? ctx.store.getQuotedOperation(instrument) : undefined;
+    if (!op || op.result || op.executedAt !== null) return null;
+    const quoted = (op.quotedEntry as QuotedRecord | null)?.quoted;
+    if (!quoted || Date.parse(String(quoted.extra.refundDeadline)) <= ctx.now() + 15_000) return null;
+    return quoted;
+  }
+
+  /**
+   * What happened to the operation behind this token: for the token's holder only. The token is the proof
+   * (its MAC binds the deposit address, resource and destination), so no other operation or buyer is visible.
+   */
+  async lookup(token: unknown, ctx: Pick<MethodContext, "store" | "now">): Promise<OperationView> {
+    const unknown: OperationView = { state: "unknown" };
+    if (typeof token !== "string" || token.length > 256) return unknown;
+    const instrument = ctx.store.getKv(`optok:${sha(token)}`);
+    const op = instrument ? ctx.store.getQuotedOperation(instrument) : undefined;
+    const rec = op?.quotedEntry as QuotedRecord | null | undefined;
+    if (!instrument || !op || !rec?.quoted) return unknown;
+    const q = rec.quoted;
+    const memo = typeof q.extra.depositMemo === "string" ? q.extra.depositMemo : undefined;
+    const check = verifyOperationToken(this.o.keys, token, { network: q.network, depositAddress: q.payTo, depositMemo: memo, resource: rec.resource, destination: rec.unquoted.extra.destination as Destination }, Math.floor(ctx.now() / 1000));
+    if (!check.ok) return unknown;
+    const payment = ctx.store.paymentByOperation(instrument);
+    if (payment) {
+      const receipt = payment.status === "settled" ? JSON.parse(ctx.store.getKv(`receipt:${payment.id}`) ?? "null") : undefined;
+      if (payment.status === "refunded") return { state: "refunded", payment_id: payment.id, refund_state: "refunded", ...(payment.refundedAmount ? { refund_amount_usdc: payment.refundedAmount } : {}) };
+      const delivery = ctx.store.getKv(`delivery:${payment.id}`) ?? "";
+      const refund = ctx.store.getKv(`refund:${payment.id}`);
+      const refundView = refund ? { refund_state: "owed" as const, refund_amount_usdc: refund } : {};
+      if (delivery === "ok") return { state: "delivered", payment_id: payment.id, receipt };
+      if (delivery.startsWith("failed")) return { state: "upstream_failed", payment_id: payment.id, receipt, ...refundView };
+      return { state: "delivery_unknown", payment_id: payment.id, receipt };
+    }
+    const result = op.result as SettleResponse | null;
+    if (result?.success) return { state: "settled_not_delivered" };
+    if (result) return { state: (result.extra as { status?: string } | undefined)?.status === "REFUNDED" ? "refunded" : "refund_in_progress", refund_state: (result.extra as { status?: string } | undefined)?.status === "REFUNDED" ? "refunded" : "in_progress" };
+    // No result yet: ask 1Click about the deposit address.
+    try {
+      const st = await this.o.oneClick.status(q.payTo, memo);
+      switch (st.status) {
+        case "PENDING_DEPOSIT":
+          return { state: Date.parse(String(q.extra.refundDeadline)) < ctx.now() ? "expired" : "quoted" };
+        case "REFUNDED":
+          return { state: "refunded", refund_state: "refunded" };
+        case "FAILED":
+          return { state: "refund_in_progress", refund_state: "in_progress" };
+        default:
+          return { state: "deposit_in_progress" };
+      }
+    } catch {
+      return unknown;
+    }
   }
 
   // ── /settle: confirm delivery to the seller ────────────────────────────
@@ -268,7 +347,9 @@ export class NearIntentsMethod implements PaymentMethodHandler {
       ctx.store.recordResult(instrument, owner, settle, ctx.now());
       log("info", "near-intents payment refunded to payer", { endpoint: meta.endpoint.id, status: status.status, reason: d.refundReason ?? null });
       return {
-        kind: "rejected", reason: settle.errorReason!, message: `${status.status}: funds are returned by 1Click to ${refundTo}`, settle,
+        kind: "rejected", reason: settle.errorReason!, message: status.status === "REFUNDED"
+          ? `1Click reports REFUNDED: the deposit was returned to ${refundTo}`
+          : `1Click reports ${status.status}: 1Click returns failed swaps to ${refundTo}; that refund is in progress and not yet confirmed`, settle,
         refund: { ...base, destTx: null, refundedAmount: d.refundedAmount ?? d.depositedAmount ?? null, refundReason: d.refundReason ?? status.status },
       };
     } catch (e) {

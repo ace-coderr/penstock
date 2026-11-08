@@ -3,7 +3,7 @@ import { HOME_SELLER_ID } from "@penstock/core";
 import type { Holding, IntentsStack } from "@penstock/intents-adapter";
 import type { AccountChecker } from "./account-check";
 import { overview } from "./admin-api";
-import { clientAddress, HttpError, sendJson } from "./http";
+import { clientAddress, HttpError, readJson, sendJson } from "./http";
 import { PAID_CORS_HEADERS, type ProxyContext } from "./paywall";
 
 /**
@@ -14,6 +14,14 @@ import { PAID_CORS_HEADERS, type ProxyContext } from "./paywall";
  *     headline numbers for the landing page, published only for simulated demo/dry data.
  */
 export async function handlePublicApi(ctx: ProxyContext, intents: IntentsStack, accounts: AccountChecker, req: IncomingMessage, res: ServerResponse, url: URL): Promise<void> {
+  // POST /api/public/operation { operationToken }: what happened to this one operation. The token is the credential:
+  // it returns that operation only, and the same "unknown" for anything it does not recognise.
+  if (url.pathname === "/api/public/operation") {
+    if (req.method !== "POST") throw new HttpError(405, "POST only", "method_not_allowed");
+    if (ctx.limiter.take("routes", clientAddress(req, ctx.trustProxy), ctx.now())) throw new HttpError(429, "rate limited", "rate_limited");
+    const body = await readJson<{ operationToken?: unknown }>(req, 1024);
+    return sendJson(res, 200, { operation: await intents.method.lookup(body.operationToken, { store: ctx.store, now: ctx.now }) }, PAID_CORS_HEADERS);
+  }
   if (req.method !== "GET") throw new HttpError(405, "GET only", "method_not_allowed");
   if (url.pathname === "/api/public/stats") {
     // A live seller's revenue is not published here; the landing page only shows simulated demo data.

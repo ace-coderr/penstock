@@ -553,11 +553,12 @@ export class PenstockBuyer {
         break;
       case "delivered":
         if (op.state !== "delivered") {
-          op = this.journal.update(op.id, { state: "delivered", receipt: view.receipt ?? op.receipt, resultBody: op.resultBody ?? null, note: "the seller delivered; this buyer did not receive the response body, so it is not available here" });
+          op = this.journal.update(op.id, { state: "delivered", paymentId: view.payment_id ?? op.paymentId, receipt: view.receipt ?? op.receipt, resultBody: op.resultBody ?? null, note: "the seller delivered; this buyer did not receive the response body, so it is not available here" });
         }
         break;
       case "upstream_failed":
-        op = this.journal.update(op.id, { state: "upstream_failed_after_settlement", receipt: view.receipt ?? op.receipt, refundState: view.refund_state ?? op.refundState, refundAmountUsdc: view.refund_amount_usdc ?? op.refundAmountUsdc });
+      case "delivery_unknown":
+        op = this.journal.update(op.id, { state: "upstream_failed_after_settlement", paymentId: view.payment_id ?? op.paymentId, receipt: view.receipt ?? op.receipt, refundState: view.refund_state ?? op.refundState, refundAmountUsdc: view.refund_amount_usdc ?? op.refundAmountUsdc });
         break;
       case "refunded":
         op = this.journal.update(op.id, { state: op.state === "upstream_failed_after_settlement" ? op.state : "refunded", refundState: "refunded", refundAmountUsdc: view.refund_amount_usdc ?? op.refundAmountUsdc });
@@ -679,7 +680,8 @@ export function verdictFor(latest: Operation | undefined, opts: CallOptions, aut
 }
 
 export interface SellerOperationView {
-  state: "quoted" | "deposit_in_progress" | "settled_not_delivered" | "delivered" | "upstream_failed" | "refunded" | "refund_in_progress" | "expired" | "unknown";
+  state: "quoted" | "deposit_in_progress" | "settled_not_delivered" | "delivered" | "upstream_failed" | "delivery_unknown" | "refunded" | "refund_in_progress" | "expired" | "unknown";
+  payment_id?: string;
   receipt?: unknown;
   refund_state?: RefundState;
   refund_amount_usdc?: string;

@@ -129,7 +129,7 @@ export async function decide(ctx: ProxyContext, seller: Seller, endpointIn: Endp
     }
     case "pending":
       ctx.store.advanceProbe(endpoint.id, buyer, "deposited");
-      return { type: "required", paymentRequired: required("settlement pending: retry with the same payload"), settle: outcome.settle, retryAfter: 5 };
+      return { type: "required", paymentRequired: required("settlement pending: the deposit is seen but not final yet. Wait, then present the same deposit payload again; do not make a second deposit"), settle: outcome.settle, retryAfter: 5 };
     case "rejected":
       if (outcome.refund) {
         // Funds moved and were returned to the payer by 1Click: record the refund in the books.
@@ -247,10 +247,16 @@ export async function handleHttpPaid(ctx: ProxyContext, req: IncomingMessage, re
 }
 
 async function deliverHttp(ctx: ProxyContext, res: ServerResponse, endpoint: Endpoint, req: Parameters<Delivery["deliver"]>[2], payment: Payment, paidHeaders: Record<string, string>): Promise<void> {
+  // What happened after settlement is written down, so a buyer that lost the response can ask (operation lookup).
+  const outcome = (v: string) => {
+    if (!payment.sessionId) ctx.store.setKv(`delivery:${payment.id}`, v);
+  };
   try {
     const up = await ctx.delivery.deliver(ctx, endpoint, req, payment);
+    outcome(up.status >= 500 || up.body.length === 0 ? `failed:${up.status >= 500 ? up.status : "empty"}` : "ok");
     sendRaw(res, up.status, up.body, { ...PAID_CORS_HEADERS, ...up.headers, ...paidHeaders, "x-content-type-options": "nosniff" });
   } catch (e) {
+    outcome("failed:error");
     // Under the upfront flow the receipt is returned even when the resource fails.
     log("warn", "upstream failed after payment", { endpoint: endpoint.id, paymentId: payment.id, error: (e as Error).message });
     sendJson(res, 502, { error: "upstream unavailable after payment", paymentId: payment.id, note: "The payment settled. Keep the PENSTOCK-RECEIPT header and contact the seller." }, { ...PAID_CORS_HEADERS, ...paidHeaders });
