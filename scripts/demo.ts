@@ -110,7 +110,7 @@ async function main() {
       });
       agents.set(holding, buyer);
       try {
-        const r = await buyer.call(`${base}/p/tidewater/${target}`);
+        const r = await buyer.call(`${base}/p/tidewater/${target}`, {}, undefined, { newPurchase: true }); // the demo agent buys the same thing again on purpose
         console.log(`  agent  ${r.paid ? "paid" : "did not pay"}  ${target.split("?")[0]!.padEnd(13)} from ${holding.padEnd(10)} ${r.paid ? `via ${r.method}${r.method === "session" && r.note?.startsWith("opened") ? " (opened: price below the bridge minimum)" : ""}` : (r.note ?? "")}  [simulated]`);
       } catch (e) {
         console.log(`  agent  error ${(e as Error).message}`);

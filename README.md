@@ -311,6 +311,8 @@ Discovery is at `GET /.well-known/penstock.json`. It lists sellers, endpoints, c
 - Spend is settled in batches of 25 calls, by a sweeper every 30 seconds, and on close.
 - Unused balance is refunded on `POST /s/<seller>/<slug>/close` or after 24 hours.
 
+> Live mode: the seller holds session funds up to the cap and sends back the unused balance. No escrow yet.
+
 **Trust model, plainly:** the funding payment goes to the seller's account, so **the seller holds session funds, up to the cap, until close**. The buyer gets a **signed session receipt** (ed25519) at open, on `GET /s/…/status` and at close. The receipt shows funded, spent, settled, refund and refund state. In demo and dry mode, refunds are simulated. In live mode Penstock holds no keys, so refunds are listed in the console as "owed" for the seller to send. An escrow contract would remove the trust in the seller; it is not built.
 
 ## Agent-to-agent resale

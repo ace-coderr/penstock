@@ -74,6 +74,8 @@ export interface PaidResult extends Partial<Envelope> {
   receipt?: unknown;
   /** Set when a live deposit is needed and no origin wallet can make it. resumeId is the operation id. */
   depositRequired?: { resumeId: string; instructions: DepositInstructions };
+  /** True when this answer comes from an earlier operation on file (with its original receipt): no new payment was made by this call. */
+  replayed?: boolean;
   note?: string;
 }
 
@@ -514,7 +516,7 @@ export class PenstockBuyer {
     const deliveredUnacked = op.state === "delivered" && !op.acknowledged;
     const failedMoved = op.state === "upstream_failed_after_settlement" || (op.state === "failed" && movedMoney(op) !== "no");
     const result: PaidResult = {
-      status: op.resultStatus ?? 402, body: op.state === "delivered" || failedMoved ? op.resultBody : null, paid: op.state === "delivered" && (op.resultStatus ?? 0) < 400,
+      replayed: true, status: op.resultStatus ?? 402, body: op.state === "delivered" || failedMoved ? op.resultBody : null, paid: op.state === "delivered" && (op.resultStatus ?? 0) < 400,
       method: op.method, originChain: op.originChain ?? undefined, originSymbol: op.originSymbol ?? undefined,
       ...(op.settlement ? { settlement: op.settlement as SettleResponse } : {}), ...(op.receipt ? { receipt: op.receipt } : {}),
       note: deliveredUnacked

@@ -22,7 +22,7 @@ export function resaleDelivery(base: Delivery, config: PenstockConfig, env: Node
     let b = buyers.get(seller.id);
     if (!b) {
       const near = config.mode === "live" ? liveNearWallet(seller.nearAccount, String(env.RESALE_NEAR_KEY)) : simulatedNearWallet(seller.nearAccount);
-      b = new PenstockBuyer({ directories: [], holdings: parseHoldings("near:USDC"), near, userAgent: `penstock-resale/${seller.id}` });
+      b = new PenstockBuyer({ directories: [], holdings: parseHoldings("near:USDC"), near, userAgent: `penstock-resale/${seller.id}`, autonomous: true });
       buyers.set(seller.id, b);
     }
     return b;
