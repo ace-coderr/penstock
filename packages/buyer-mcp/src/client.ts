@@ -355,7 +355,13 @@ export class PenstockBuyer {
       };
     });
 
-    if (claim.kind === "refuse") return this.seal({ status: 402, body: null, paid: false, note: claim.message });
+    if (claim.kind === "refuse") {
+      // A refusal that says "do not retry" must say it in the envelope too, and name the last operation on file.
+      const lastId = this.journal.last()?.id ?? this.journal.lastUnverifiedId;
+      const unsure = this.journal.tampered !== null;
+      const message = unsure && lastId ? `${claim.message}. Last operation on file: ${lastId}; ask penstock_status with operation_id ${lastId}` : claim.message;
+      return { ...this.seal({ status: 402, body: null, paid: false, note: message }, null, message), ...(unsure ? { state: "failed" as const, money_moved: "unknown" as const, do_not_retry: true, operation_id: lastId ?? null } : {}) };
+    }
     if (claim.kind === "return") return this.returnExisting(claim.op);
 
     let op = claim.op;
@@ -624,8 +630,18 @@ export class PenstockBuyer {
   /** What happened to an operation, confirmed with the seller where possible. `idOrLast`: an operation id or "last". */
   async status(idOrLast = "last"): Promise<SealedResult & { operation_summary?: Record<string, unknown> }> {
     const op0 = idOrLast === "last" || !idOrLast ? this.journal.last() : this.journal.get(idOrLast);
+    if (!op0 && this.journal.tampered) {
+      const id = this.journal.lastUnverifiedId;
+      const message = `The journal failed its integrity check, so no operation can be confirmed from it.${id ? ` The newest operation id in the file is ${id} (unverified); do not retry, and look it up with penstock_status once the journal is repaired or with the seller.` : " Do not retry."}`;
+      return { ...this.seal({ status: 0, body: null, paid: false }, null, message), state: "failed", money_moved: "unknown", do_not_retry: true, operation_id: id };
+    }
     if (!op0) {
       return { ...this.seal({ status: 404, body: null, paid: false }, null, idOrLast === "last" ? "This buyer has not started any payment, so there is nothing to look up." : `No operation ${idOrLast} is in this buyer's journal.`), state: "no_operation" };
+    }
+    // A journal that failed its integrity check is read, never written: show the last recorded state and say so.
+    if (this.journal.tampered) {
+      const e = envelopeFor(op0, this.total());
+      return { status: op0.resultStatus ?? 0, body: null, paid: false, ...e, next_action: `${e.next_action} The journal failed its integrity check, so this is the last recorded state and may be out of date.` };
     }
     let op = await this.reconcile(op0);
     const moved = movedMoney(op);
