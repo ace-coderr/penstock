@@ -46,8 +46,9 @@ export function paidTotal(total: bigint): string {
 
 /**
  * The words for one operation. Pure, so the wording rules can be tested state by state. Every sentence starts with
- * "Operation <id>:" and every call it names carries the same id, so a person reading only the message has what to
- * look up without risking a new payment.
+ * "Operation <id>:", and every call it names carries the same id. When money moved or may have, the instruction
+ * comes FIRST ("DO NOT RETRY. Check penstock_status with operation_id <id> before starting a new purchase.") and the
+ * details (amounts, transaction hash, refund state) follow, so an alert that cuts the text keeps the instruction.
  */
 export function describeOperation(op: Operation): { next_action: string; do_not_retry: boolean } {
   const r = describeRaw(op);
@@ -55,7 +56,18 @@ export function describeOperation(op: Operation): { next_action: string; do_not_
   const text = r.next_action
     .replace(/call penstock_resume with operation_id and the transaction hash/g, `call penstock_resume with operation_id ${id} and the transaction hash`)
     .replace(/penstock_status(?! with)/g, `penstock_status with operation_id ${id}`);
-  return { do_not_retry: r.do_not_retry, next_action: `Operation ${id}: ${text}` };
+  if (!r.do_not_retry) return { do_not_retry: false, next_action: `Operation ${id}: ${text}` };
+  return { do_not_retry: true, next_action: `${leadInstruction(id)} ${text}` };
+}
+
+/**
+ * The first sentence of every do-not-retry message. Within the first 120 characters it holds the operation id,
+ * "DO NOT RETRY" and the call to make. Without an id (nothing readable on file) it is just "DO NOT RETRY."
+ */
+export function leadInstruction(id?: string | null): string {
+  return id
+    ? `Operation ${id}: DO NOT RETRY. Check penstock_status with operation_id ${id} before starting a new purchase.`
+    : "DO NOT RETRY. No operation id is readable, so check with the seller before starting a new purchase.";
 }
 
 function describeRaw(op: Operation): { next_action: string; do_not_retry: boolean } {

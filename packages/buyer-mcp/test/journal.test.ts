@@ -228,17 +228,47 @@ describe("the operation id is in the sentence", () => {
     expect(checked).toBeGreaterThan(20);
   });
 
-  it("keeps the key phrases and reads as one consistent form", () => {
+  it("every do_not_retry state leads with the instruction: id, DO NOT RETRY and penstock_status inside the first 120 characters, in that order", () => {
+    const variants: Operation[] = [];
+    for (const s of states) for (const refundState of ["none", "in_progress", "owed", "refunded"] as const) for (const txHash of [null, "sim:0x" + "ab".repeat(32)]) for (const manual of [false, true]) variants.push(mk(s, { refundState, txHash, manualDeposit: manual, resultStatus: 502 }));
+    let checked = 0;
+    for (const o of variants) {
+      const { next_action, do_not_retry } = describeOperation(o);
+      if (!do_not_retry) continue;
+      checked++;
+      const head = next_action.slice(0, 120);
+      const iId = head.indexOf(o.id);
+      const iDo = head.indexOf("DO NOT RETRY");
+      const iSt = head.indexOf("penstock_status");
+      expect(iId, `${o.state}: ${head}`).toBeGreaterThanOrEqual(0);
+      expect(iDo, `${o.state}: ${head}`).toBeGreaterThan(iId);
+      expect(iSt, `${o.state}: ${head}`).toBeGreaterThan(iDo);
+      expect(next_action.startsWith(`Operation ${o.id}: DO NOT RETRY. Check penstock_status with operation_id ${o.id} before starting a new purchase.`)).toBe(true);
+      // the details (transaction hash, amounts) come after the instruction
+      const tx = o.txHash;
+      if (tx && next_action.includes(tx)) expect(next_action.indexOf(tx)).toBeGreaterThan(120);
+    }
+    expect(checked).toBeGreaterThan(20);
+  });
+
+  it("the check also holds with the longest ids and amounts: the first id, DO NOT RETRY and penstock_status still fit in 120 characters", () => {
+    const longId = "op_" + "f".repeat(40);
+    const o = { ...mk("confirming", { amountUsdc: "99999999999999", debitedUsdc: "99999999999999", txHash: "sim:0x" + "ab".repeat(32) }), id: longId };
+    const head = describeOperation(o).next_action.slice(0, 120);
+    expect(head).toContain(longId);
+    expect(head).toContain("DO NOT RETRY");
+    expect(head).toContain("penstock_status");
+  });
+
+  it("keeps the details and the wording after the instruction", () => {
     const sent = describeOperation(mk("deposit_sent_unconfirmed")).next_action;
-    expect(sent).toMatch(/^Operation op_0123456789abcdef: A deposit was started/);
-    expect(sent).toMatch(/Do not retry/);
+    expect(sent).toMatch(/^Operation op_0123456789abcdef: DO NOT RETRY\. Check penstock_status with operation_id op_0123456789abcdef before starting a new purchase\. A deposit was started/);
     expect(sent).toMatch(/call penstock_resume with operation_id op_0123456789abcdef and the transaction hash/);
-    expect(sent).toMatch(/penstock_status with operation_id op_0123456789abcdef\.$/);
     const confirming = describeOperation(mk("confirming", { txHash: "tx9" })).next_action;
-    expect(confirming).toBe("Operation op_0123456789abcdef: Deposit sent (tx tx9); the seller has not confirmed delivery yet. Do not retry: a retry pays again. Call penstock_status with operation_id op_0123456789abcdef in a few seconds.");
+    expect(confirming).toBe("Operation op_0123456789abcdef: DO NOT RETRY. Check penstock_status with operation_id op_0123456789abcdef before starting a new purchase. Deposit sent (tx tx9); the seller has not confirmed delivery yet. Do not retry: a retry pays again. Call penstock_status with operation_id op_0123456789abcdef in a few seconds.");
     const failedUp = describeOperation(mk("upstream_failed_after_settlement", { resultStatus: 502 })).next_action;
-    expect(failedUp).toMatch(/^Operation op_0123456789abcdef: The payment of 0\.25 USDC settled, but the seller's upstream failed \(HTTP 502\)\./);
-    expect(failedUp).toMatch(/Keep the receipt and call penstock_status with operation_id op_0123456789abcdef\.$/);
+    expect(failedUp).toMatch(/^Operation op_0123456789abcdef: DO NOT RETRY\. Check penstock_status with operation_id op_0123456789abcdef before starting a new purchase\. The payment of 0\.25 USDC settled, but the seller's upstream failed \(HTTP 502\)\./);
+    expect(describeOperation(mk("expired")).next_action).toBe("Operation op_0123456789abcdef: The quote expired and no deposit was started. Calling penstock_call again opens a new quote."); // do_not_retry: false keeps its wording
   });
 });
 
@@ -259,10 +289,13 @@ describe("no do_not_retry message without the id (error paths)", () => {
     expect(r).toMatchObject({ do_not_retry: true, money_moved: "unknown", state: "failed", operation_id: first.operation_id });
     expect(r.note).toContain(first.operation_id!);
     expect(r.next_action).toContain(first.operation_id!);
+    expect(r.next_action.slice(0, 120)).toContain("DO NOT RETRY");
+    expect((r.note ?? "").slice(0, 120)).toContain("DO NOT RETRY");
     const s = await b.status();
     expect(s).toMatchObject({ do_not_retry: true, money_moved: "unknown", operation_id: first.operation_id });
     expect(s.next_action).toMatch(/integrity check/);
     expect(s.next_action).toContain(first.operation_id!);
+    expect(s.next_action.slice(0, 120)).toContain("DO NOT RETRY");
   });
 
   it("the seller never sees or returns a buyer's operation id", async () => {
