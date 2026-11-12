@@ -314,7 +314,7 @@ An agent that gets an error after paying and simply calls again used to open a *
 - **Results and messages carry the operation id.** Every `next_action` sentence starts with `Operation <id>:` and every call it names (`penstock_status`, `penstock_resume`) is given that same id, so someone reading only the message can look the payment up without risking a new one.
 - Sessions are unchanged: a retry on a session-metered endpoint spends the session, not a new deposit.
 
-See [docs/RETRY-TEST.md](docs/RETRY-TEST.md) for the test and its before and after numbers. The problem was found by outside agent testing with [Clearance](https://github.com/Selliksss/clearance); the credit and details are in that file.
+See [docs/RETRY-TEST.md](docs/RETRY-TEST.md) for the test and its before and after numbers. If a payment shows "not confirmed", follow [the on-call steps](docs/RETRY-TEST.md#if-a-payment-is-not-confirmed-for-whoever-is-on-call). The problem was found by outside agent testing with [Clearance](https://github.com/Selliksss/clearance); the credit and details are in that file.
 
 ## Prepaid sessions and their trust model
 
