@@ -2,7 +2,7 @@
 
 This is a self-audit of Penstock at the end of development, done on 2026-11-01 and extended on 2026-11-02 (rows 43–47, interface refinement pass; rows 48–50, 1Click re-check against the official docs; rows 51–55, live-path audit after the first real payment and refund; rows 56–62, real data on the hosted site). Each item says what was checked and how. "Fixed" means a code change landed with a regression test. "Held" means the existing design already handled it and a test proves it. "Remains" means it is not solved and is stated plainly.
 
-Tests: `pnpm test` runs 180 tests in 30 files. The hosted static build is checked by `pnpm audit:static` (after `pnpm build:static`). The audit-specific tests are in `apps/proxy/test/audit.test.ts`.
+Tests: `pnpm test` runs 192 tests in 31 files. The hosted static build is checked by `pnpm audit:static` (after `pnpm build:static`). The audit-specific tests are in `apps/proxy/test/audit.test.ts`.
 
 ## Results
 
