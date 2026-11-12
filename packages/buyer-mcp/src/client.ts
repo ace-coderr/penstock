@@ -6,7 +6,7 @@ import {
 } from "@penstock/intents-adapter";
 import { envelopeFor, plainEnvelope, type Envelope } from "./envelope";
 import { buildExactPayload, isExactNear } from "./exact";
-import { Journal, TERMINAL_STATES, hashParams, movedMoney, operationKey, type Operation, type OperationRequest, type RefundState } from "./journal";
+import { Journal, SimulatedCrash, TERMINAL_STATES, defaultJournalDir, hashParams, movedMoney, operationKey, type Operation, type OperationRequest, type RefundState } from "./journal";
 import type { NearWallet } from "./near-wallet";
 
 /**
@@ -95,6 +95,8 @@ export interface BuyerOptions {
   journal?: Journal;
   /** Stable identity for journal keys; default is derived from the wallets. */
   buyerId?: string;
+  /** Test hook: throw SimulatedCrash at a named point to stop the buyer as a crash would (nothing after it is journaled). */
+  crashAt?: (point: CrashPoint) => void;
   /** How long an identical call replays an unacknowledged delivered result instead of buying again. Default 10 minutes. */
   replayWindowMs?: number;
   /** Refuse to open a new purchase once the journal's paid total (USDC base units) would pass this. */
@@ -105,6 +107,8 @@ export interface BuyerOptions {
    */
   autonomous?: boolean;
 }
+
+export type CrashPoint = "after_intent" | "after_quote" | "before_deposit" | "after_broadcast" | "after_record" | "after_response";
 
 export interface CallOptions {
   /** Buy again even though the previous operation for this call is resolved with money moved (needs penstock_status first). */
@@ -133,7 +137,8 @@ export class PenstockBuyer {
     this.f = o.userAgent
       ? (((input: string | URL | Request, init: RequestInit = {}) => base(input, { ...init, headers: { ...(init.headers as Record<string, string> | undefined), "user-agent": o.userAgent! } })) as typeof fetch)
       : base;
-    this.journal = o.journal ?? new Journal();
+    // Never memory-only by default: a payment must be remembered across restarts (see defaultJournalDir).
+    this.journal = o.journal ?? new Journal({ dir: defaultJournalDir() });
     this.buyerId = o.buyerId ?? createHash("sha256").update([o.near?.accountId ?? "", ...(o.origins ?? []).map((w) => `${w.chain}:${w.address}`)].join("|")).digest("hex").slice(0, 16);
   }
 
@@ -355,9 +360,11 @@ export class PenstockBuyer {
 
     let op = claim.op;
     try {
+      this.o.crashAt?.("after_intent");
       if (route.method === "exact-near") return await this.payExact(op, init, required);
       return await this.payIntents(op, init, required, route);
     } catch (e) {
+      if (e instanceof SimulatedCrash) throw e;
       // An unexpected error after the write-ahead: whatever the journal says is the truth; never "nothing was paid".
       op = this.journal.get(op.id) ?? op;
       if (!TERMINAL_STATES.has(op.state) && op.state !== "quoted") op = this.journal.update(op.id, { lastError: (e as Error).message });
@@ -411,13 +418,17 @@ export class PenstockBuyer {
       quote: { resourceUrl: required.resource.url, unquoted, payTo: instructions.payTo, amount: instructions.amount, depositMemo: instructions.depositMemo, refundDeadline: instructions.refundDeadline, operationToken: instructions.operationToken, refundTo: wallet.address },
     });
 
+    this.o.crashAt?.("after_quote");
     // Write-ahead: the deposit is recorded as started BEFORE the wallet is asked to send it. If the
     // process dies in between, the journal says "may have been sent" and nothing will pay again.
     op = this.journal.update(op.id, { state: "deposit_sent_unconfirmed" });
+    this.o.crashAt?.("before_deposit");
     let txHash: string;
     try {
       txHash = await wallet.deposit(instructions);
+      this.o.crashAt?.("after_broadcast");
     } catch (e) {
+      if (e instanceof SimulatedCrash) throw e;
       if (e instanceof ManualDepositRequired) {
         op = this.journal.update(op.id, { state: "quoted", manualDeposit: true, lastError: null });
         return this.seal({
@@ -429,6 +440,7 @@ export class PenstockBuyer {
       return this.seal({ status: 502, body: null, paid: false, note: "the deposit may or may not have been sent" }, op);
     }
     op = this.journal.update(op.id, { state: "confirming", txHash });
+    this.o.crashAt?.("after_record");
     return this.submit(op, {}, { method: "near-intents", originChain: chain.key, originSymbol: asset.symbol, amountIn: instructions.amount });
   }
 
@@ -462,7 +474,9 @@ export class PenstockBuyer {
         res = await this.f(op.url, withPayment(reqInit, payload)); // same operationToken, as the draft requires
       }
       parsed = await parse(res);
+      this.o.crashAt?.("after_response");
     } catch (e) {
+      if (e instanceof SimulatedCrash) throw e;
       const cur = this.journal.update(op.id, { lastError: (e as Error).message });
       return this.seal({ status: 502, body: null, paid: false, ...meta, note: "the deposit was sent; the seller did not answer yet" }, cur);
     }
@@ -543,12 +557,16 @@ export class PenstockBuyer {
       }
       return op;
     }
+    if (op.state === "deposit_sent_unconfirmed" && !op.txHash && !op.exactPayload && op.quote && view.origin_txs?.length === 1) {
+      // The deposit was broadcast but the crash came before its hash was written: the route's status shows it.
+      op = this.journal.update(op.id, { state: "confirming", txHash: view.origin_txs[0]!, lastError: null, note: "deposit transaction recovered from the route's status after a restart" });
+    }
     switch (view.state) {
       case "deposit_in_progress":
       case "settled_not_delivered":
         // The seller has the deposit (or settled it) but has not delivered: presenting the same payload again completes it.
         if (op.txHash && (op.state === "confirming" || op.state === "deposit_sent_unconfirmed")) {
-          const meta = { method: "near-intents" as const, originChain: op.originChain ?? undefined, originSymbol: op.originSymbol ?? undefined, amountIn: op.quote.amount };
+          const meta = { method: "near-intents" as const, originChain: op.originChain ?? undefined, originSymbol: op.originSymbol ?? undefined, amountIn: op.quote?.amount };
           await this.submit(op, {}, meta, 1);
           op = this.journal.get(op.id)!;
         }
@@ -688,6 +706,8 @@ export function verdictFor(latest: Operation | undefined, opts: CallOptions, aut
 export interface SellerOperationView {
   state: "quoted" | "deposit_in_progress" | "settled_not_delivered" | "delivered" | "upstream_failed" | "delivery_unknown" | "refunded" | "refund_in_progress" | "expired" | "unknown";
   payment_id?: string;
+  /** Origin-chain transaction hashes the route has seen for this deposit address (at most 3). */
+  origin_txs?: string[];
   receipt?: unknown;
   refund_state?: RefundState;
   refund_amount_usdc?: string;

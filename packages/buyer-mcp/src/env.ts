@@ -1,6 +1,6 @@
 import type { Holding } from "@penstock/intents-adapter";
 import { parseUnits } from "@penstock/core";
-import { Journal } from "./journal";
+import { Journal, defaultJournalDir } from "./journal";
 import { PenstockBuyer, simulatedOriginWallet, type OriginWallet } from "./client";
 import { liveNearWallet, simulatedNearWallet, type NearWallet } from "./near-wallet";
 
@@ -10,7 +10,8 @@ import { liveNearWallet, simulatedNearWallet, type NearWallet } from "./near-wal
  *   PENSTOCK_HOLDINGS     chain:symbol[:balance],...   (default: a demo agent that holds no NEAR USDC)
  *   PENSTOCK_SIMULATED    true (default) uses simulated wallets; only a demo/dry proxy accepts them
  *   PENSTOCK_NEAR_ACCOUNT / PENSTOCK_NEAR_KEY   live exact payments on NEAR (full-access key)
- *   PENSTOCK_JOURNAL_DIR  where the operation journal lives (default ./data/buyer-journal); it survives restarts
+ *   PENSTOCK_JOURNAL_DIR  where the operation journal lives (default ~/.penstock/buyer-journal, an absolute path that does not depend on the
+ *                         working directory); it survives restarts. The word "memory" turns persistence off (simulated runs only).
  *   PENSTOCK_MAX_TOTAL_USD  refuse new purchases once the journal's paid total would pass this (default: no limit)
  */
 export const DEMO_HOLDINGS = "base:USDC:2500000,sol:SOL:40000000,arb:ETH:900000000000000,btc:BTC:20000";
@@ -35,7 +36,7 @@ export function buyerFromEnv(env: NodeJS.ProcessEnv): { buyer: PenstockBuyer; su
   } else if (env.PENSTOCK_NEAR_ACCOUNT && env.PENSTOCK_NEAR_KEY) {
     near = liveNearWallet(env.PENSTOCK_NEAR_ACCOUNT, env.PENSTOCK_NEAR_KEY);
   }
-  const journal = new Journal({ dir: env.PENSTOCK_JOURNAL_DIR || "./data/buyer-journal" });
+  const journal = new Journal({ dir: defaultJournalDir(env) });
   const maxTotalUsdc = env.PENSTOCK_MAX_TOTAL_USD ? parseUnits(env.PENSTOCK_MAX_TOTAL_USD, 6) : undefined;
   const buyer = new PenstockBuyer({ directories, holdings, near, origins, journal, maxTotalUsdc });
   return { buyer, summary: `${simulated ? "SIMULATED wallets" : "live"}; holdings ${holdings.map((h) => `${h.symbol}@${h.chain}`).join(", ")}; directories ${directories.join(", ")}` };

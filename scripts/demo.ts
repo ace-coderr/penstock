@@ -92,7 +92,7 @@ async function main() {
 
   let agentTimer: NodeJS.Timeout | null = null;
   if (!args.has("--no-agent") && config.mode !== "live") {
-    const { PenstockBuyer, simulatedNearWallet, simulatedOriginWallet, parseHoldings } = await import("@penstock/buyer-mcp");
+    const { PenstockBuyer, Journal, simulatedNearWallet, simulatedOriginWallet, parseHoldings } = await import("@penstock/buyer-mcp");
     const pool = ["base:USDC", "sol:SOL", "arb:USDC", "eth:ETH", "op:USDC", "btc:BTC", "near:USDC", "pol:USDC", "avax:AVAX", "near:wNEAR"];
     const targets = ["tides?harbor=rotterdam", "voyage-plan?harbor=singapore", "geocode?q=singapore", "tides?harbor=lagos", "harbor-brief?harbor=halifax"];
     const base = `http://localhost:${PROXY_PORT}`;
@@ -106,7 +106,8 @@ async function main() {
       const hs = parseHoldings(holding);
       const buyer = agents.get(holding) ?? new PenstockBuyer({
         directories: [`${base}/.well-known/penstock.json`], holdings: hs, near: simulatedNearWallet(`sim-agent-${agents.size}.near`),
-        origins: hs.filter((h) => h.chain !== "near").map((h) => simulatedOriginWallet(h.chain, base)), userAgent: `penstock-demo-agent/${holding}`,
+        origins: hs.filter((h) => h.chain !== "near").map((h) => simulatedOriginWallet(h.chain, base)), userAgent: `penstock-demo-agent/${holding}`, journal: new Journal(), // simulated agents: nothing real to remember
+       
       });
       agents.set(holding, buyer);
       try {

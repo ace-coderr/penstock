@@ -1,6 +1,30 @@
 import { createHash, createHmac, randomBytes, randomUUID } from "node:crypto";
 import { closeSync, existsSync, fsyncSync, mkdirSync, openSync, readFileSync, statSync, unlinkSync, writeFileSync, writeSync } from "node:fs";
-import { join } from "node:path";
+import { homedir } from "node:os";
+import { join, resolve } from "node:path";
+
+/**
+ * Where the buyer keeps its journal when nothing says otherwise: a fixed directory under the user's home,
+ * so it is the same whatever directory an MCP client happens to start the process in.
+ * PENSTOCK_JOURNAL_DIR overrides it; the single word "memory" means no persistence (simulated runs and tests only).
+ */
+export function defaultJournalDir(env: NodeJS.ProcessEnv = process.env): string | undefined {
+  const v = (env.PENSTOCK_JOURNAL_DIR ?? "").trim();
+  if (v === "memory") return undefined;
+  return resolve(v || join(homedir(), ".penstock", "buyer-journal"));
+}
+
+/** Thrown at a deliberate crash point in tests: nothing after it runs, so nothing after it is journaled. */
+export class SimulatedCrash extends Error {}
+
+function pidAlive(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (e) {
+    return (e as NodeJS.ErrnoException).code === "EPERM";
+  }
+}
 
 /**
  * The buyer's operation journal. Every payment the buyer starts is one operation, written down
@@ -98,6 +122,8 @@ export class Journal {
   private order: string[] = [];
   private lastMac = ZERO;
   private n = 0;
+  /** The absolute directory this journal lives in, or null for an in-memory journal. */
+  dir: string | null = null;
   private readonly file: string | null;
   private readonly lockFile: string | null;
   private readonly macKey: Buffer;
@@ -106,10 +132,12 @@ export class Journal {
 
   constructor(readonly opts: { dir?: string; now?: () => number; compactAt?: number } = {}) {
     if (opts.dir) {
-      mkdirSync(opts.dir, { recursive: true });
-      this.file = join(opts.dir, "journal.jsonl");
-      this.lockFile = join(opts.dir, "journal.lock");
-      const keyFile = join(opts.dir, "journal.key");
+      const dir = resolve(opts.dir); // absolute, so a later change of working directory cannot point it elsewhere
+      this.dir = dir;
+      mkdirSync(dir, { recursive: true });
+      this.file = join(dir, "journal.jsonl");
+      this.lockFile = join(dir, "journal.lock");
+      const keyFile = join(dir, "journal.key");
       if (!existsSync(keyFile)) writeFileSync(keyFile, randomBytes(32).toString("hex"), { mode: 0o600, flag: "wx" });
       this.macKey = Buffer.from(readFileSync(keyFile, "utf8").trim(), "hex");
       this.load();
@@ -225,9 +253,11 @@ export class Journal {
         closeSync(fd);
         break;
       } catch {
-        // A lock older than 30 s belongs to a crashed process.
+        // A lock belongs to a crashed process if its owner is gone, or if it is older than 30 s.
         try {
-          if (Date.now() - statSync(this.lockFile).mtimeMs > 30_000) unlinkSync(this.lockFile);
+          const owner = Number(readFileSync(this.lockFile, "utf8").trim());
+          const dead = Number.isInteger(owner) && owner > 0 && owner !== process.pid && !pidAlive(owner);
+          if (dead || Date.now() - statSync(this.lockFile).mtimeMs > 30_000) unlinkSync(this.lockFile);
         } catch {
           /* it was released meanwhile */
         }
