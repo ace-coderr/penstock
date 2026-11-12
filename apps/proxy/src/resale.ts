@@ -1,4 +1,4 @@
-import { PenstockBuyer, liveNearWallet, parseHoldings, simulatedNearWallet } from "@penstock/buyer-mcp";
+import { Journal, defaultJournalDir, PenstockBuyer, liveNearWallet, parseHoldings, simulatedNearWallet } from "@penstock/buyer-mcp";
 import { log, type Endpoint, type PenstockConfig, type Seller } from "@penstock/core";
 import type { Delivery, ProxyContext } from "./paywall";
 import { buildTargetUrl, forward, validateUpstreamUrl } from "./upstream";
@@ -22,7 +22,7 @@ export function resaleDelivery(base: Delivery, config: PenstockConfig, env: Node
     let b = buyers.get(seller.id);
     if (!b) {
       const near = config.mode === "live" ? liveNearWallet(seller.nearAccount, String(env.RESALE_NEAR_KEY)) : simulatedNearWallet(seller.nearAccount);
-      b = new PenstockBuyer({ directories: [], holdings: parseHoldings("near:USDC"), near, userAgent: `penstock-resale/${seller.id}`, autonomous: true });
+      b = new PenstockBuyer({ directories: [], holdings: parseHoldings("near:USDC"), near, userAgent: `penstock-resale/${seller.id}`, autonomous: true, journal: new Journal({ dir: config.mode === "live" && defaultJournalDir() ? `${defaultJournalDir()}-resale-${seller.id}` : undefined }) });
       buyers.set(seller.id, b);
     }
     return b;

@@ -1,6 +1,6 @@
 import { decodePaymentRequiredHeader } from "@x402/core/http";
 import { verifyReceipt, type PaymentRequired } from "@penstock/core";
-import { PenstockBuyer, liveNearWallet, parseHoldings, simulatedNearWallet, simulatedOriginWallet } from "@penstock/buyer-mcp";
+import { Journal, PenstockBuyer, liveNearWallet, parseHoldings, simulatedNearWallet, simulatedOriginWallet } from "@penstock/buyer-mcp";
 import { HttpOneClick, isUnquoted, type RankedRoute } from "@penstock/intents-adapter";
 
 /**
@@ -84,7 +84,7 @@ export async function runSelftest(o: SelftestOptions): Promise<SelftestResult> {
   if (simulated !== false) {
     const buyer = new PenstockBuyer({
       directories: [`${url.origin}/.well-known/penstock.json`], holdings, near: simulatedNearWallet("selftest-agent.near"),
-      origins: holdings.filter((h) => h.chain !== "near").map((h) => simulatedOriginWallet(h.chain, url.origin)), fetchImpl: f,
+      origins: holdings.filter((h) => h.chain !== "near").map((h) => simulatedOriginWallet(h.chain, url.origin)), fetchImpl: f, journal: new Journal(), // simulated target: ephemeral
     });
     try {
       const routes: RankedRoute[] = await buyer.routes(url.href);

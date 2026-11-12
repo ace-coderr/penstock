@@ -67,6 +67,8 @@ const sha = (s: string) => createHash("sha256").update(s).digest("hex");
 export interface OperationView {
   state: "quoted" | "deposit_in_progress" | "settled_not_delivered" | "delivered" | "upstream_failed" | "delivery_unknown" | "refunded" | "refund_in_progress" | "expired" | "unknown";
   payment_id?: string;
+  /** Origin-chain deposit transaction hashes the route has seen (at most 3): lets a buyer that crashed after broadcasting find its own deposit. */
+  origin_txs?: string[];
   receipt?: unknown;
   refund_state?: "none" | "in_progress" | "owed" | "refunded";
   refund_amount_usdc?: string;
@@ -260,7 +262,7 @@ export class NearIntentsMethod implements PaymentMethodHandler {
         case "FAILED":
           return { state: "refund_in_progress", refund_state: "in_progress" };
         default:
-          return { state: "deposit_in_progress" };
+          return { state: "deposit_in_progress", origin_txs: st.swapDetails.originChainTxHashes.slice(0, 3).map((t) => t.hash) };
       }
     } catch {
       return unknown;
