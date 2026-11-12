@@ -311,6 +311,7 @@ An agent that gets an error after paying and simply calls again used to open a *
 - **Every `penstock_*` result carries the same envelope:** `state`, `money_moved`, `price_usdc`, `route_fee_usdc`, `total_debited_usdc`, `payment_id`, `operation_id`, `do_not_retry`, `next_action`, `paid_total_usdc` (fees included). Seller text reaches the agent only as a quoted `seller_message`, never as instructions. A refund is described as refunded only when 1Click reports REFUNDED, and as "in progress" when it reports FAILED.
 - **`maxUsd` covers price plus route fee.** If the total is above it, the call is refused before any payment, and the message states the total.
 - **The seller returns the same quote** to the same buyer for the same unresolved purchase, so a retry never mints a second deposit address. Addresses stay single-use.
+- **Results and messages carry the operation id.** Every `next_action` sentence starts with `Operation <id>:` and every call it names (`penstock_status`, `penstock_resume`) is given that same id, so someone reading only the message can look the payment up without risking a new one.
 - Sessions are unchanged: a retry on a session-metered endpoint spends the session, not a new deposit.
 
 See [docs/RETRY-TEST.md](docs/RETRY-TEST.md) for the test and its before and after numbers. The problem was found by outside agent testing with [Clearance](https://github.com/Selliksss/clearance); the credit and details are in that file.
