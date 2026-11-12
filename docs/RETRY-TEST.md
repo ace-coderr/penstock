@@ -4,6 +4,60 @@ The double-payment path was found by running LLM agents against Penstock with Cl
 
 An outside test of LLM agents against the buyer MCP found that, after the first paid call hit an error, most agents called again, which opened a new quote and a new deposit: the seller received two payments while the agent reported one. This file describes the scripted reproduction and the fix. It runs in demo mode only.
 
+## If a payment is not confirmed (for whoever is on call)
+
+A tool result can say that a payment was sent but is not confirmed, or that it settled but the seller's upstream failed. Those results are real and the money may have moved. Two examples, copied from real demo-mode runs (simulated settlement; ids as they came out):
+
+**Deposit sent, not confirmed**
+
+```json
+{
+  "state": "confirming",
+  "money_moved": "yes",
+  "do_not_retry": true,
+  "operation_id": "op_1f201918aa294902",
+  "payment_id": null,
+  "next_action": "Operation op_1f201918aa294902: Deposit sent (tx sim:0x4404d6bc097a2fb86f3ffb596714f846cf0f6e25239d91a3df65fe468ccc4287); the seller has not confirmed delivery yet. Do not retry: a retry pays again. Call penstock_status with operation_id op_1f201918aa294902 in a few seconds."
+}
+```
+
+**Settled, upstream failed**
+
+```json
+{
+  "state": "upstream_failed_after_settlement",
+  "money_moved": "yes",
+  "do_not_retry": true,
+  "operation_id": "op_2210fc5a7f104742",
+  "payment_id": "pay_2fd927cdd44b490f",
+  "next_action": "Operation op_2210fc5a7f104742: The payment of 0.25 USDC settled, but the seller's upstream failed (HTTP 502). The seller has the funds; whether a refund is coming is not confirmed. Do not retry: a retry pays again. Keep the receipt and call penstock_status with operation_id op_2210fc5a7f104742."
+}
+```
+
+**What to copy.** The operation id: the text after the word `Operation` at the start of `next_action` (for example `op_1f201918aa294902`). It is also the `operation_id` field. Every call named in the message already carries it.
+
+**Do this, in order:**
+
+1. **Do not call `penstock_call` again.** A second call for the same thing is how a second payment starts.
+2. **Call `penstock_status` with that `operation_id`.** It asks the seller what happened and, where it can, finishes the delivery without sending money.
+3. **If the state is still unconfirmed after a few minutes,** look up the origin-chain transfer to the deposit address named in the message, then call `penstock_resume` with the `operation_id` and the transaction hash. It never sends a second deposit.
+4. **Start a new purchase (`new_purchase: true`) only when** the status says `refunded`, or `expired` with no deposit started, or `delivered` and you really want fresh data.
+
+**What each state means** (`money_moved` is whether your money left and has not come back):
+
+| State | money_moved | In one line |
+| --- | --- | --- |
+| `quoted` | no | A quote exists, no deposit was started. A repeat call continues the same quote. |
+| `deposit_sent_unconfirmed` | yes, or unknown if no transaction hash was recorded | A deposit was started or sent and the seller has not confirmed it. If unknown, it may have been sent: do not retry. |
+| `confirming` | yes | The deposit's transaction is known; delivery is not confirmed yet. |
+| `delivered` | yes | Paid once and delivered. The result and `payment_id` are in the result. |
+| `upstream_failed_after_settlement` | yes | The seller has the payment but its upstream failed. `refund_state` says whether a refund is booked (`owed`) or sent (`refunded`); `none` means not confirmed either way. |
+| `refunded` | no | The route reported REFUNDED: the deposit was returned. |
+| `failed` | no if no deposit was started; otherwise yes or unknown | The purchase did not complete. With `refund_state: in_progress` the route reported FAILED and is returning the deposit; it is not confirmed yet. |
+| `expired` | no | The quote ran out before any deposit was started. |
+
+**An honest note.** In these samples the ids start with `op_` and transaction hashes with `sim`, because demo mode simulates settlement; no real funds are involved. In live mode, a deposit that was sent but not yet recorded is detected through 1Click's status for the deposit address, and that status can lag behind the chain, so "not confirmed" can last a few minutes even when everything is fine.
+
 ## What is injected, plainly
 
 **The failure is injected.** The harness (`packages/buyer-mcp/test/retry-harness.test.ts`) lets the real payment settle in simulated demo settlement, then makes the agent's next answer wrong. Three real-world equivalents:
