@@ -38,6 +38,12 @@ Assertions per run: seller ledger rows for the purchase, seller-side deposits, w
 
 Before the fix, the naive agent's two deposits were 0.507272 USDC for a 0.25 USDC price. The balance-checker avoided the second deposit before the fix too, but in the seller-error case the payment was never booked (0 ledger rows) and it could name no payment id. After the fix, every run in the 18-case matrix ends with exactly one ledger row, and the agent's final message carries that payment's id.
 
+## Restarts
+
+`packages/buyer-mcp/test/restart.test.ts` stops the buyer dead at named points (nothing after the stop is written to the journal), then starts a fresh buyer on the same journal directory and makes the same call. Crash points: after the intent is written, after the quote is recorded, after the deposit is broadcast but before its hash is written, after the deposit is recorded, and after the seller answered but before the answer is recorded. After every restart the call resumes the same operation (same operation id, same deposit address), the seller shows one deposit and one settled payment, and the payment id and paid total are right. A real killed child process leaves its lock file behind in one case; a restart in a different working directory and a deadline that passed after broadcast are covered too.
+
+**Honest limit.** Demo mode simulates the deposit. In live mode a deposit that was sent but not yet recorded is detected only through the route's status check (the deposit address's status shows the transaction), so it depends on 1Click showing the deposit, which can lag. If the crash comes after the intent is marked "deposit started" but before the wallet sends, the buyer cannot tell whether anything left: it reports "may have been sent, do not retry", sends nothing more, and waits for the route's status or a transaction hash from the agent (`penstock_resume`).
+
 ## What changed
 
 See "Buyer retry safety" in the README: the operation journal, repeat-call semantics, `penstock_status`, the result envelope, server-side quote idempotency, and `maxUsd` covering price plus route fee.
