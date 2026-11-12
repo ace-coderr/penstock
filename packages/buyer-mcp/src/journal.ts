@@ -129,6 +129,8 @@ export class Journal {
   private readonly macKey: Buffer;
   /** Set when a stored line failed its integrity check; new purchases are refused while set. */
   tampered: { line: number } | null = null;
+  /** After a failed integrity check: the newest operation id found in the file by reading it WITHOUT trusting it. For display only. */
+  lastUnverifiedId: string | null = null;
 
   constructor(readonly opts: { dir?: string; now?: () => number; compactAt?: number } = {}) {
     if (opts.dir) {
@@ -169,6 +171,19 @@ export class Journal {
     const tornAllowed = !text.endsWith("\n");
     let prev = ZERO;
     let good = "";
+    const noteUnverified = () => {
+      for (let j = lastIdx; j >= 0; j--) {
+        try {
+          const id = (JSON.parse(lines[j]!) as Line).rec?.id;
+          if (typeof id === "string" && /^op_[0-9a-f]{16}$/.test(id)) {
+            this.lastUnverifiedId = id;
+            return;
+          }
+        } catch {
+          /* not a readable line */
+        }
+      }
+    };
     for (let i = 0; i <= lastIdx; i++) {
       const raw = lines[i]!;
       if (!raw) continue;
@@ -186,10 +201,12 @@ export class Journal {
           break;
         }
         this.tampered = { line: i + 1 };
+        noteUnverified();
         return;
       }
       if (parsed.prev !== prev || parsed.mac !== this.mac(prev, parsed.rec) || parsed.n !== this.n + 1) {
         this.tampered = { line: i + 1 };
+        noteUnverified();
         return;
       }
       prev = parsed.mac;
@@ -290,6 +307,7 @@ export class Journal {
     this.n = 0;
     this.lastMac = ZERO;
     this.tampered = null;
+    this.lastUnverifiedId = null;
     this.load();
   }
 

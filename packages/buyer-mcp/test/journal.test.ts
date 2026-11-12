@@ -207,3 +207,71 @@ describe("through the buyer", () => {
     expect(r.payment_id).toMatch(/^pay_/);
   });
 });
+
+describe("the operation id is in the sentence", () => {
+  const states: OperationState[] = ["quoted", "deposit_sent_unconfirmed", "confirming", "delivered", "upstream_failed_after_settlement", "refunded", "expired", "failed"];
+  const mk = (state: OperationState, over: Partial<Operation> = {}): Operation => ({ ...op({ state, ...over }), id: "op_0123456789abcdef", createdAt: 0, updatedAt: 1 });
+
+  it("every state with do_not_retry: true names the operation, and every call it names carries the same id", () => {
+    const variants: Operation[] = [];
+    for (const s of states) for (const refundState of ["none", "in_progress", "owed", "refunded"] as const) for (const txHash of [null, "tx"]) for (const manual of [false, true]) variants.push(mk(s, { refundState, txHash, manualDeposit: manual }));
+    let checked = 0;
+    for (const o of variants) {
+      const { next_action, do_not_retry } = describeOperation(o);
+      expect(next_action.startsWith(`Operation ${o.id}: `), `${o.state}`).toBe(true);
+      if (do_not_retry) checked++;
+      // every named call is followed by the id (status) or by "operation_id <id>" (resume)
+      for (const m of next_action.matchAll(/penstock_status(?! with operation_id op_0123456789abcdef)/g)) throw new Error(`${o.state}: penstock_status without the id: ${next_action} @${m.index}`);
+      for (const m of next_action.matchAll(/penstock_resume with operation_id(?! op_0123456789abcdef)/g)) throw new Error(`${o.state}: penstock_resume without the id: ${next_action} @${m.index}`);
+      expect(next_action).not.toMatch(/nothing was paid|will be returned|funds are returned/i);
+    }
+    expect(checked).toBeGreaterThan(20);
+  });
+
+  it("keeps the key phrases and reads as one consistent form", () => {
+    const sent = describeOperation(mk("deposit_sent_unconfirmed")).next_action;
+    expect(sent).toMatch(/^Operation op_0123456789abcdef: A deposit was started/);
+    expect(sent).toMatch(/Do not retry/);
+    expect(sent).toMatch(/call penstock_resume with operation_id op_0123456789abcdef and the transaction hash/);
+    expect(sent).toMatch(/penstock_status with operation_id op_0123456789abcdef\.$/);
+    const confirming = describeOperation(mk("confirming", { txHash: "tx9" })).next_action;
+    expect(confirming).toBe("Operation op_0123456789abcdef: Deposit sent (tx tx9); the seller has not confirmed delivery yet. Do not retry: a retry pays again. Call penstock_status with operation_id op_0123456789abcdef in a few seconds.");
+    const failedUp = describeOperation(mk("upstream_failed_after_settlement", { resultStatus: 502 })).next_action;
+    expect(failedUp).toMatch(/^Operation op_0123456789abcdef: The payment of 0\.25 USDC settled, but the seller's upstream failed \(HTTP 502\)\./);
+    expect(failedUp).toMatch(/Keep the receipt and call penstock_status with operation_id op_0123456789abcdef\.$/);
+  });
+});
+
+describe("no do_not_retry message without the id (error paths)", () => {
+  let h: Harness;
+  beforeEach(async () => {
+    h = await startHarness({}, { oneClick: new SimulatedOneClick({ processingMs: 40 }) });
+  });
+  afterEach(() => h.stop());
+
+  it("a tampered journal refuses with do_not_retry in the envelope and names the last operation; status still answers, read-only", async () => {
+    const mk = () => new PenstockBuyer({ directories: [`${h.base}/.well-known/penstock.json`], holdings: parseHoldings("base:USDC:2500000"), near: simulatedNearWallet("a.near"), origins: [simulatedOriginWallet("base", h.base)], journal: new Journal({ dir }), buyerId: "t" });
+    const first = await mk().call(`${h.base}/p/tidewater/voyage-plan?harbor=lagos`);
+    const f = join(dir, "journal.jsonl");
+    writeFileSync(f, readFileSync(f, "utf8").replace('"state":"quoted"', '"state":"expired"'));
+    const b = mk();
+    const r = await b.call(`${h.base}/p/tidewater/voyage-plan?harbor=nairobi`);
+    expect(r).toMatchObject({ do_not_retry: true, money_moved: "unknown", state: "failed", operation_id: first.operation_id });
+    expect(r.note).toContain(first.operation_id!);
+    expect(r.next_action).toContain(first.operation_id!);
+    const s = await b.status();
+    expect(s).toMatchObject({ do_not_retry: true, money_moved: "unknown", operation_id: first.operation_id });
+    expect(s.next_action).toMatch(/integrity check/);
+    expect(s.next_action).toContain(first.operation_id!);
+  });
+
+  it("the seller never sees or returns a buyer's operation id", async () => {
+    const hs = parseHoldings("base:USDC:2500000");
+    const buyer = new PenstockBuyer({ directories: [`${h.base}/.well-known/penstock.json`], holdings: hs, near: simulatedNearWallet("a.near"), origins: [simulatedOriginWallet("base", h.base)], journal: new Journal({ dir }), buyerId: "t" });
+    const r = await buyer.call(`${h.base}/p/tidewater/voyage-plan?harbor=lagos`);
+    const token = buyer.journal.get(r.operation_id!)!.quote!.operationToken;
+    const view = await (await fetch(`${h.base}/api/public/operation`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ operationToken: token }) })).text();
+    expect(view).not.toContain(r.operation_id!);
+    expect(view).not.toMatch(/op_[0-9a-f]{16}/);
+  });
+});

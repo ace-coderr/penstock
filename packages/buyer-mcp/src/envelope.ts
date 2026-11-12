@@ -44,8 +44,21 @@ export function paidTotal(total: bigint): string {
   return usdc(total);
 }
 
-/** The words for one operation. Pure, so the wording rules can be tested state by state. */
+/**
+ * The words for one operation. Pure, so the wording rules can be tested state by state. Every sentence starts with
+ * "Operation <id>:" and every call it names carries the same id, so a person reading only the message has what to
+ * look up without risking a new payment.
+ */
 export function describeOperation(op: Operation): { next_action: string; do_not_retry: boolean } {
+  const r = describeRaw(op);
+  const id = op.id;
+  const text = r.next_action
+    .replace(/call penstock_resume with operation_id and the transaction hash/g, `call penstock_resume with operation_id ${id} and the transaction hash`)
+    .replace(/penstock_status(?! with)/g, `penstock_status with operation_id ${id}`);
+  return { do_not_retry: r.do_not_retry, next_action: `Operation ${id}: ${text}` };
+}
+
+function describeRaw(op: Operation): { next_action: string; do_not_retry: boolean } {
   const amount = `${usdc(op.amountUsdc)} USDC`;
   const chain = op.originChain ? (chainByKey(op.originChain)?.label ?? op.originChain) : "the origin chain";
   const tx = op.txHash ?? "unknown";
