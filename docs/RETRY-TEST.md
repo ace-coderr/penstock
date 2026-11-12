@@ -15,9 +15,9 @@ A tool result can say that a payment was sent but is not confirmed, or that it s
   "state": "confirming",
   "money_moved": "yes",
   "do_not_retry": true,
-  "operation_id": "op_1f201918aa294902",
+  "operation_id": "op_bf5a6bafa807472b",
   "payment_id": null,
-  "next_action": "Operation op_1f201918aa294902: Deposit sent (tx sim:0x4404d6bc097a2fb86f3ffb596714f846cf0f6e25239d91a3df65fe468ccc4287); the seller has not confirmed delivery yet. Do not retry: a retry pays again. Call penstock_status with operation_id op_1f201918aa294902 in a few seconds."
+  "next_action": "Operation op_bf5a6bafa807472b: DO NOT RETRY. Check penstock_status with operation_id op_bf5a6bafa807472b before starting a new purchase. Deposit sent (tx sim:0xa7b588d51129469c56258fde507b4a152c2ecf8277aa5ead96529c31529961ac); the seller has not confirmed delivery yet. Do not retry: a retry pays again. Call penstock_status with operation_id op_bf5a6bafa807472b in a few seconds."
 }
 ```
 
@@ -28,13 +28,13 @@ A tool result can say that a payment was sent but is not confirmed, or that it s
   "state": "upstream_failed_after_settlement",
   "money_moved": "yes",
   "do_not_retry": true,
-  "operation_id": "op_2210fc5a7f104742",
-  "payment_id": "pay_2fd927cdd44b490f",
-  "next_action": "Operation op_2210fc5a7f104742: The payment of 0.25 USDC settled, but the seller's upstream failed (HTTP 502). The seller has the funds; whether a refund is coming is not confirmed. Do not retry: a retry pays again. Keep the receipt and call penstock_status with operation_id op_2210fc5a7f104742."
+  "operation_id": "op_64aa0abd99d64849",
+  "payment_id": "pay_cb5aadf657c64eb8",
+  "next_action": "Operation op_64aa0abd99d64849: DO NOT RETRY. Check penstock_status with operation_id op_64aa0abd99d64849 before starting a new purchase. The payment of 0.25 USDC settled, but the seller's upstream failed (HTTP 502). The seller has the funds; whether a refund is coming is not confirmed. Do not retry: a retry pays again. Keep the receipt and call penstock_status with operation_id op_64aa0abd99d64849."
 }
 ```
 
-**What to copy.** The operation id: the text after the word `Operation` at the start of `next_action` (for example `op_1f201918aa294902`). It is also the `operation_id` field. Every call named in the message already carries it.
+**What to copy.** The operation id: the text after the word `Operation` at the start of `next_action` (the first sentence also says DO NOT RETRY and names `penstock_status`, so it survives an alert that cuts the message) (for example `op_bf5a6bafa807472b`). It is also the `operation_id` field. Every call named in the message already carries it.
 
 **Do this, in order:**
 

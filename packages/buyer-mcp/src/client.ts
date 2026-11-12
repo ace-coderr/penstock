@@ -4,7 +4,7 @@ import { assetOn, chainByKey, formatUnits, type PaymentPayload, type PaymentRequ
 import {
   buildDepositPayload, buildQuotePayload, depositInstructions, findQuotedEntry, isUnquoted, type DepositInstructions, type Holding, type RankedRoute,
 } from "@penstock/intents-adapter";
-import { envelopeFor, plainEnvelope, type Envelope } from "./envelope";
+import { envelopeFor, leadInstruction, plainEnvelope, type Envelope } from "./envelope";
 import { buildExactPayload, isExactNear } from "./exact";
 import { Journal, SimulatedCrash, TERMINAL_STATES, defaultJournalDir, hashParams, movedMoney, operationKey, type Operation, type OperationRequest, type RefundState } from "./journal";
 import type { NearWallet } from "./near-wallet";
@@ -359,7 +359,7 @@ export class PenstockBuyer {
       // A refusal that says "do not retry" must say it in the envelope too, and name the last operation on file.
       const lastId = this.journal.last()?.id ?? this.journal.lastUnverifiedId;
       const unsure = this.journal.tampered !== null;
-      const message = unsure && lastId ? `${claim.message}. Last operation on file: ${lastId}; ask penstock_status with operation_id ${lastId}` : claim.message;
+      const message = unsure ? `${leadInstruction(lastId)} ${claim.message}.` : claim.message;
       return { ...this.seal({ status: 402, body: null, paid: false, note: message }, null, message), ...(unsure ? { state: "failed" as const, money_moved: "unknown" as const, do_not_retry: true, operation_id: lastId ?? null } : {}) };
     }
     if (claim.kind === "return") return this.returnExisting(claim.op);
@@ -632,7 +632,7 @@ export class PenstockBuyer {
     const op0 = idOrLast === "last" || !idOrLast ? this.journal.last() : this.journal.get(idOrLast);
     if (!op0 && this.journal.tampered) {
       const id = this.journal.lastUnverifiedId;
-      const message = `The journal failed its integrity check, so no operation can be confirmed from it.${id ? ` The newest operation id in the file is ${id} (unverified); do not retry, and look it up with penstock_status once the journal is repaired or with the seller.` : " Do not retry."}`;
+      const message = `${leadInstruction(id)} The journal failed its integrity check, so no operation can be confirmed from it.${id ? ` The newest operation id in the file (${id}) was read without trusting it.` : ""}`;
       return { ...this.seal({ status: 0, body: null, paid: false }, null, message), state: "failed", money_moved: "unknown", do_not_retry: true, operation_id: id };
     }
     if (!op0) {
